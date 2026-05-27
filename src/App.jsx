@@ -27,11 +27,20 @@ const CATEGORIAS = {
   otro:         { icono: "📦", color: C.textLight, label: "Otro"       },
 };
 
-const NAV = [
+const NAV_MOBILE = [
   { id: "inicio",      label: "Inicio",      icon: "🏠" },
   { id: "movimientos", label: "Movimientos", icon: "💸" },
   { id: "metas",       label: "Metas",       icon: "🎯" },
   { id: "compartido",  label: "Compartido",  icon: "🤝" },
+  { id: "perfil",      label: "Perfil",      icon: "👤" },
+];
+
+const NAV_DESKTOP = [
+  { id: "inicio",      label: "Inicio",      icon: "🏠" },
+  { id: "movimientos", label: "Movimientos", icon: "💸" },
+  { id: "metas",       label: "Metas",       icon: "🎯" },
+  { id: "compartido",  label: "Compartido",  icon: "🤝" },
+  { id: "perfil",      label: "Mi Perfil",   icon: "👤" },
 ];
 
 // ─── COMPONENTES BASE ─────────────────────────────────────────────────────────
@@ -57,6 +66,21 @@ function Spinner() {
       <div style={{ textAlign: "center" }}>
         <div style={{ width: 48, height: 48, border: `4px solid ${C.border}`, borderTop: `4px solid ${C.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
         <p style={{ color: C.textMid, fontWeight: 600 }}>Cargando...</p>
+      </div>
+    </div>
+  );
+}
+
+function Modal({ children, onClose, title }) {
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: "fixed", inset: 0, background: "#00000065", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: C.white, borderRadius: 24, padding: 28, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px #00000025", animation: "popIn 0.25s ease", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <p style={{ fontWeight: 800, fontSize: 20, color: C.text }}>{title}</p>
+          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 10, background: C.bg, border: "none", cursor: "pointer", fontSize: 17, color: C.textMid, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+        {children}
       </div>
     </div>
   );
@@ -113,18 +137,18 @@ function PantallaLogin() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{ minHeight: "100vh", background: `linear-gradient(135deg, #EBF2FF 0%, #F4F6FB 50%, #F0FDF4 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <p style={{ fontSize: 52, marginBottom: 8 }}>💰</p>
-          <p style={{ fontWeight: 800, fontSize: 28, color: C.text }}>Mis Finanzas</p>
-          <p style={{ color: C.textMid, fontSize: 15, marginTop: 4 }}>Tu dinero, bajo control</p>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{ width: 80, height: 80, borderRadius: 24, background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, margin: "0 auto 16px", boxShadow: `0 12px 32px ${C.accent}40` }}>💰</div>
+          <p style={{ fontWeight: 800, fontSize: 30, color: C.text }}>Mis Finanzas</p>
+          <p style={{ color: C.textMid, fontSize: 15, marginTop: 6 }}>Tu dinero, bajo control</p>
         </div>
-        <Card>
-          <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        <Card style={{ padding: 28, boxShadow: "0 8px 32px #00000012" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 24, background: C.bg, borderRadius: 14, padding: 4 }}>
             {[["login", "Iniciar sesión"], ["registro", "Registrarse"]].map(([val, label]) => (
               <button key={val} onClick={() => { setModo(val); setError(""); }}
-                style={{ flex: 1, padding: "11px", borderRadius: 12, border: `2px solid ${modo === val ? C.accent : C.border}`, background: modo === val ? C.accentLight : C.white, color: modo === val ? C.accent : C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: modo === val ? C.white : "transparent", color: modo === val ? C.accent : C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer", boxShadow: modo === val ? "0 2px 8px #00000010" : "none", transition: "all 0.2s" }}>
                 {label}
               </button>
             ))}
@@ -133,14 +157,112 @@ function PantallaLogin() {
             {modo === "registro" && <input placeholder="Tu nombre" value={nombre} onChange={e => setNombre(e.target.value)} />}
             <input placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
             <input placeholder="Contraseña" type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-            {error && <p style={{ color: error.includes("creada") ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{error}</p>}
+            {error && (
+              <div style={{ padding: "10px 14px", borderRadius: 12, background: error.includes("creada") ? C.greenLight : C.redLight, border: `1px solid ${error.includes("creada") ? C.green : C.red}30` }}>
+                <p style={{ color: error.includes("creada") ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{error}</p>
+              </div>
+            )}
             <button onClick={handleSubmit} disabled={loading}
-              style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 14, padding: "14px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", opacity: loading ? 0.7 : 1, marginTop: 4 }}>
-              {loading ? "Cargando..." : modo === "login" ? "Entrar" : "Crear cuenta"}
+              style={{ background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, color: "#fff", border: "none", borderRadius: 14, padding: "15px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", opacity: loading ? 0.7 : 1, marginTop: 4, boxShadow: `0 8px 20px ${C.accent}40` }}>
+              {loading ? "Cargando..." : modo === "login" ? "Entrar →" : "Crear cuenta →"}
             </button>
           </div>
         </Card>
       </div>
+    </div>
+  );
+}
+
+// ─── TAB PERFIL ───────────────────────────────────────────────────────────────
+function TabPerfil({ session, balances, setBalances, onCerrarSesion }) {
+  const [nombre, setNombre]         = useState(balances.nombre_usuario || session?.user?.user_metadata?.nombre || "");
+  const [editNombre, setEditNombre] = useState(false);
+  const [guardando, setGuardando]   = useState(false);
+  const [exito, setExito]           = useState(false);
+
+  const guardarNombre = async () => {
+    if (!nombre.trim()) return;
+    setGuardando(true);
+    const nuevos = { ...balances, nombre_usuario: nombre.trim() };
+    await supabase.from("balances").upsert({ user_id: session.user.id, ...nuevos });
+    setBalances(nuevos);
+    await supabase.auth.updateUser({ data: { nombre: nombre.trim() } });
+    setGuardando(false);
+    setEditNombre(false);
+    setExito(true);
+    setTimeout(() => setExito(false), 2500);
+  };
+
+  const nombreMostrar = balances.nombre_usuario || session?.user?.user_metadata?.nombre || session?.user?.email?.split("@")[0] || "Usuario";
+  const inicial = nombreMostrar.charAt(0).toUpperCase();
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 600 }}>
+      <p style={{ fontWeight: 800, fontSize: 22 }}>Mi Perfil</p>
+
+      {/* Avatar y nombre */}
+      <Card style={{ padding: 28, textAlign: "center" }}>
+        <div style={{ width: 80, height: 80, borderRadius: "50%", background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 800, color: "#fff", margin: "0 auto 16px" }}>
+          {inicial}
+        </div>
+        <p style={{ fontWeight: 800, fontSize: 22, color: C.text }}>{nombreMostrar}</p>
+        <p style={{ color: C.textMid, fontSize: 14, marginTop: 4 }}>{session?.user?.email}</p>
+        {exito && <p style={{ color: C.green, fontWeight: 600, fontSize: 13, marginTop: 10 }}>✓ Nombre actualizado</p>}
+      </Card>
+
+      {/* Cambiar nombre */}
+      <Card>
+        <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 14 }}>✏️ Cambiar nombre</p>
+        {editNombre ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input value={nombre} onChange={e => setNombre(e.target.value)}
+              placeholder="Tu nombre" autoFocus
+              onKeyDown={e => e.key === "Enter" && guardarNombre()} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setEditNombre(false)}
+                style={{ flex: 1, padding: "12px", borderRadius: 14, border: `2px solid ${C.border}`, background: C.white, color: C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                Cancelar
+              </button>
+              <button onClick={guardarNombre} disabled={guardando}
+                style={{ flex: 2, padding: "12px", borderRadius: 14, border: "none", background: C.accent, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: guardando ? 0.7 : 1 }}>
+                {guardando ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <p style={{ color: C.textMid, fontSize: 13 }}>Nombre actual</p>
+              <p style={{ fontWeight: 700, fontSize: 16, marginTop: 2 }}>{nombreMostrar}</p>
+            </div>
+            <button onClick={() => setEditNombre(true)}
+              style={{ padding: "10px 18px", borderRadius: 12, border: `2px solid ${C.accent}`, background: C.accentLight, color: C.accent, fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              Cambiar
+            </button>
+          </div>
+        )}
+      </Card>
+
+      {/* Info cuenta */}
+      <Card>
+        <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 14 }}>📧 Información de cuenta</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+          <p style={{ color: C.textMid, fontSize: 13 }}>Email</p>
+          <p style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{session?.user?.email}</p>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0" }}>
+          <p style={{ color: C.textMid, fontSize: 13 }}>Miembro desde</p>
+          <p style={{ fontWeight: 600, fontSize: 14, color: C.text }}>
+            {new Date(session?.user?.created_at).toLocaleDateString("es-AR", { month: "long", year: "numeric" })}
+          </p>
+        </div>
+      </Card>
+
+      {/* Cerrar sesión */}
+      <button onClick={onCerrarSesion}
+        style={{ padding: "14px", borderRadius: 16, border: `2px solid ${C.red}30`, background: C.redLight, color: C.red, fontFamily: "inherit", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
+        🚪 Cerrar sesión
+      </button>
     </div>
   );
 }
@@ -175,23 +297,14 @@ function TabInicio({ transacciones, balances, setBalances, userId, historial, is
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Card style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #1250c0 100%)`, border: "none" }}>
+      <Card style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #1250c0 100%)`, border: "none", boxShadow: `0 8px 32px ${C.accent}40` }}>
         <p style={{ color: "#ffffffaa", fontSize: 12, fontWeight: 600, marginBottom: 6, letterSpacing: 1 }}>TU PATRIMONIO TOTAL</p>
         <p style={{ color: "#fff", fontSize: isMobile ? 36 : 48, fontWeight: 800, lineHeight: 1 }}>{fmt(patrimonio)}</p>
         <p style={{ color: "#ffffffbb", fontSize: 13, marginTop: 6 }}>Total en cuentas: {fmt(total)}</p>
         <div style={{ display: "flex", gap: 32, marginTop: 16, borderTop: "1px solid #ffffff30", paddingTop: 14 }}>
-          <div>
-            <p style={{ color: "#ffffffaa", fontSize: 11 }}>Ingresos del mes</p>
-            <p style={{ color: "#fff", fontSize: 18, fontWeight: 800, marginTop: 2 }}>+{fmt(ingresos)}</p>
-          </div>
-          <div>
-            <p style={{ color: "#ffffffaa", fontSize: 11 }}>Gastos del mes</p>
-            <p style={{ color: "#ffcccc", fontSize: 18, fontWeight: 800, marginTop: 2 }}>-{fmt(gastos)}</p>
-          </div>
-          <div>
-            <p style={{ color: "#ffffffaa", fontSize: 11 }}>Ahorro mensual</p>
-            <p style={{ color: "#ccffcc", fontSize: 18, fontWeight: 800, marginTop: 2 }}>{fmt(ahorrando)}</p>
-          </div>
+          <div><p style={{ color: "#ffffffaa", fontSize: 11 }}>Ingresos del mes</p><p style={{ color: "#fff", fontSize: 18, fontWeight: 800, marginTop: 2 }}>+{fmt(ingresos)}</p></div>
+          <div><p style={{ color: "#ffffffaa", fontSize: 11 }}>Gastos del mes</p><p style={{ color: "#ffcccc", fontSize: 18, fontWeight: 800, marginTop: 2 }}>-{fmt(gastos)}</p></div>
+          <div><p style={{ color: "#ffffffaa", fontSize: 11 }}>Ahorro mensual</p><p style={{ color: "#ccffcc", fontSize: 18, fontWeight: 800, marginTop: 2 }}>{fmt(ahorrando)}</p></div>
         </div>
       </Card>
 
@@ -213,10 +326,7 @@ function TabInicio({ transacciones, balances, setBalances, userId, historial, is
         <Barra pct={objetivoPct} color={C.green} />
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, flexWrap: "wrap", gap: 4 }}>
           <p style={{ color: C.textMid, fontSize: 12 }}>Ahorrado: <b style={{ color: C.text }}>{fmt(balances.ahorros || 0)}</b></p>
-          <p style={{ color: C.textMid, fontSize: 12 }}>
-            Meta: <b onClick={() => { setEditandoObj(true); setValObj(balances.objetivo || ""); }}
-              style={{ color: C.accent, cursor: "pointer" }}>{fmt(balances.objetivo || 0)} ✏️</b>
-          </p>
+          <p style={{ color: C.textMid, fontSize: 12 }}>Meta: <b onClick={() => { setEditandoObj(true); setValObj(balances.objetivo || ""); }} style={{ color: C.accent, cursor: "pointer" }}>{fmt(balances.objetivo || 0)} ✏️</b></p>
         </div>
         {editandoObj && (
           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
@@ -230,26 +340,18 @@ function TabInicio({ transacciones, balances, setBalances, userId, historial, is
       </Card>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 10 }}>
-        <Card style={{ textAlign: "center", padding: 14 }}>
-          <p style={{ color: C.textMid, fontSize: 12, marginBottom: 6 }}>Ahorrás/mes</p>
-          <p style={{ fontSize: 20, fontWeight: 800, color: C.green }}>{fmt(ahorrando)}</p>
-          <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>{ahorroPct}% ingresos</p>
-        </Card>
-        <Card style={{ textAlign: "center", padding: 14 }}>
-          <p style={{ color: C.textMid, fontSize: 12, marginBottom: 6 }}>Gasto diario</p>
-          <p style={{ fontSize: 20, fontWeight: 800, color: C.gold }}>{fmt(gastoDiario)}</p>
-          <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>promedio</p>
-        </Card>
-        <Card style={{ textAlign: "center", padding: 14 }}>
-          <p style={{ color: C.textMid, fontSize: 12, marginBottom: 6 }}>Predicción mes</p>
-          <p style={{ fontSize: 20, fontWeight: 800, color: C.red }}>{fmt(prediccion)}</p>
-          <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>en gastos</p>
-        </Card>
-        <Card style={{ textAlign: "center", padding: 14 }}>
-          <p style={{ color: C.textMid, fontSize: 12, marginBottom: 6 }}>Ahorro anual</p>
-          <p style={{ fontSize: 20, fontWeight: 800, color: C.accent }}>{fmt(ahorrando * 12)}</p>
-          <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>proyectado</p>
-        </Card>
+        {[
+          { label: "Ahorrás/mes", val: fmt(ahorrando), sub: `${ahorroPct}% ingresos`, color: C.green },
+          { label: "Gasto diario", val: fmt(gastoDiario), sub: "promedio", color: C.gold },
+          { label: "Predicción mes", val: fmt(prediccion), sub: "en gastos", color: C.red },
+          { label: "Ahorro anual", val: fmt(ahorrando * 12), sub: "proyectado", color: C.accent },
+        ].map((s, i) => (
+          <Card key={i} style={{ textAlign: "center", padding: 14 }}>
+            <p style={{ color: C.textMid, fontSize: 12, marginBottom: 6 }}>{s.label}</p>
+            <p style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.val}</p>
+            <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>{s.sub}</p>
+          </Card>
+        ))}
       </div>
 
       {(totalDeliv > 0 || suscripciones.length > 0) && (
@@ -282,9 +384,7 @@ function TabInicio({ transacciones, balances, setBalances, userId, historial, is
               <Card key={i} style={{ padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <p style={{ fontWeight: 700, fontSize: 13 }}>{h.mes}</p>
-                  <p style={{ fontSize: 12, color: h.ahorro >= 0 ? C.green : C.red, fontWeight: 700 }}>
-                    {h.ahorro >= 0 ? "+" : ""}{fmt(h.ahorro)}
-                  </p>
+                  <p style={{ fontSize: 12, color: h.ahorro >= 0 ? C.green : C.red, fontWeight: 700 }}>{h.ahorro >= 0 ? "+" : ""}{fmt(h.ahorro)}</p>
                 </div>
                 <p style={{ fontSize: 11, color: C.textMid }}>Ingresos: <b style={{ color: C.green }}>{fmt(h.ingresos)}</b></p>
                 <p style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>Gastos: <b style={{ color: C.red }}>{fmt(h.gastos)}</b></p>
@@ -302,9 +402,7 @@ function TabMovimientos({ transacciones, onEliminar, isMobile }) {
   const [filtro, setFiltro] = useState("todos");
   const lista = transacciones.filter(t => filtro === "todos" || t.tipo === filtro);
   const gastosCat = {};
-  transacciones.filter(t => t.tipo === "gasto").forEach(t => {
-    gastosCat[t.cat] = (gastosCat[t.cat] || 0) + t.monto;
-  });
+  transacciones.filter(t => t.tipo === "gasto").forEach(t => { gastosCat[t.cat] = (gastosCat[t.cat] || 0) + t.monto; });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -322,7 +420,6 @@ function TabMovimientos({ transacciones, onEliminar, isMobile }) {
           </div>
         </>
       )}
-
       <div style={{ display: "flex", gap: 8 }}>
         {[["todos", "Todos"], ["gasto", "Gastos"], ["ingreso", "Ingresos"]].map(([val, label]) => (
           <button key={val} onClick={() => setFiltro(val)}
@@ -331,7 +428,6 @@ function TabMovimientos({ transacciones, onEliminar, isMobile }) {
           </button>
         ))}
       </div>
-
       {lista.length === 0 ? (
         <Card style={{ textAlign: "center", padding: 40 }}>
           <p style={{ fontSize: 36, marginBottom: 12 }}>📭</p>
@@ -350,13 +446,9 @@ function TabMovimientos({ transacciones, onEliminar, isMobile }) {
                 <p style={{ color: C.textLight, fontSize: 11, marginTop: 2 }}>{t.fecha}{t.recurrente ? " · Fijo 🔄" : ""}</p>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                <p style={{ fontWeight: 800, fontSize: 14, color: t.tipo === "ingreso" ? C.green : C.red }}>
-                  {t.tipo === "ingreso" ? "+" : "-"}{fmt(t.monto)}
-                </p>
+                <p style={{ fontWeight: 800, fontSize: 14, color: t.tipo === "ingreso" ? C.green : C.red }}>{t.tipo === "ingreso" ? "+" : "-"}{fmt(t.monto)}</p>
                 <button onClick={() => { if (window.confirm(`¿Eliminás "${t.descripcion}"?`)) onEliminar(t.id); }}
-                  style={{ fontSize: 10, color: C.textLight, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
-                  🗑️ Eliminar
-                </button>
+                  style={{ fontSize: 10, color: C.textLight, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>🗑️ Eliminar</button>
               </div>
             </Card>
           ))}
@@ -373,9 +465,8 @@ function TabMetas({ transacciones, balances, isMobile }) {
   const ahorrando = ingresos - gastos;
   const metas = [
     { nombre: "Objetivo de ahorro", icono: "🎯", objetivo: balances.objetivo || 0, actual: balances.ahorros || 0, color: C.green },
-    { nombre: "Pagar deudas",       icono: "💳", objetivo: balances.deudas || 0,   actual: Math.min(ahorrando * 3, balances.deudas || 0), color: C.red },
+    { nombre: "Pagar deudas", icono: "💳", objetivo: balances.deudas || 0, actual: Math.min(ahorrando * 3, balances.deudas || 0), color: C.red },
   ];
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <p style={{ fontWeight: 700, fontSize: 18 }}>Mis Metas</p>
@@ -462,15 +553,15 @@ function DetalleEspacio({ espacio, userId, onClose, isMobile }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 300, overflowY: "auto", overflowX: "hidden" }}>
-      <div style={{ maxWidth: isMobile ? "100%" : 900, margin: "0 auto", paddingBottom: 40, width: "100%" }}>
+      <div style={{ maxWidth: isMobile ? "100%" : 900, margin: "0 auto", paddingBottom: 40 }}>
         <div style={{ background: C.white, borderBottom: `2px solid ${C.border}`, padding: "16px 20px", position: "sticky", top: 0, zIndex: 10, display: "flex", alignItems: "center", gap: 14 }}>
           <button onClick={onClose} style={{ width: 38, height: 38, borderRadius: 12, background: C.bg, border: "none", cursor: "pointer", fontSize: 20, flexShrink: 0 }}>←</button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontWeight: 800, fontSize: 17, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{espacio.nombre}</p>
           </div>
           <button onClick={copiarCodigo}
-            style={{ padding: "8px 16px", borderRadius: 12, border: `2px solid ${copiado ? C.green : C.accent}`, background: copiado ? C.greenLight : C.accentLight, color: copiado ? C.green : C.accent, fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0, transition: "all 0.2s" }}>
-            {copiado ? "✓ Copiado!" : `📋 Copiar código: ${espacio.codigo}`}
+            style={{ padding: "9px 16px", borderRadius: 12, border: `2px solid ${copiado ? C.green : C.accent}`, background: copiado ? C.greenLight : C.accentLight, color: copiado ? C.green : C.accent, fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0, transition: "all 0.2s" }}>
+            {copiado ? "✓ Copiado!" : `📋 ${espacio.codigo}`}
           </button>
         </div>
 
@@ -480,87 +571,46 @@ function DetalleEspacio({ espacio, userId, onClose, isMobile }) {
               <Card style={{ background: `linear-gradient(135deg, ${C.gold} 0%, #b45309 100%)`, border: "none" }}>
                 <p style={{ color: "#ffffffaa", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>TOTAL PAGADO</p>
                 <p style={{ color: "#fff", fontSize: 38, fontWeight: 800 }}>{fmt(total)}</p>
-                {espacio.sueldo_acordado > 0 && (
-                  <>
-                    <p style={{ color: "#ffffffbb", fontSize: 13, marginTop: 6 }}>Acordado: {fmt(espacio.sueldo_acordado)}/mes</p>
-                    <div style={{ marginTop: 10 }}>
-                      <Barra pct={sueldoPct} color="#ffffff60" />
-                      <p style={{ color: "#ffffffaa", fontSize: 11, marginTop: 6 }}>{sueldoPct}% del sueldo mensual</p>
-                    </div>
-                  </>
-                )}
+                {espacio.sueldo_acordado > 0 && (<><p style={{ color: "#ffffffbb", fontSize: 13, marginTop: 6 }}>Acordado: {fmt(espacio.sueldo_acordado)}/mes</p><div style={{ marginTop: 10 }}><Barra pct={sueldoPct} color="#ffffff60" /><p style={{ color: "#ffffffaa", fontSize: 11, marginTop: 6 }}>{sueldoPct}% del sueldo mensual</p></div></>)}
                 <div style={{ display: "flex", gap: 32, marginTop: 14, borderTop: "1px solid #ffffff30", paddingTop: 12 }}>
-                  <div>
-                    <p style={{ color: "#ffffffaa", fontSize: 11 }}>Este mes</p>
-                    <p style={{ color: "#fff", fontSize: 18, fontWeight: 800 }}>{fmt(totalMes)}</p>
-                  </div>
-                  <div>
-                    <p style={{ color: "#ffffffaa", fontSize: 11 }}>Pagos este mes</p>
-                    <p style={{ color: "#fff", fontSize: 18, fontWeight: 800 }}>{pagosMes.length}</p>
-                  </div>
+                  <div><p style={{ color: "#ffffffaa", fontSize: 11 }}>Este mes</p><p style={{ color: "#fff", fontSize: 18, fontWeight: 800 }}>{fmt(totalMes)}</p></div>
+                  <div><p style={{ color: "#ffffffaa", fontSize: 11 }}>Pagos este mes</p><p style={{ color: "#fff", fontSize: 18, fontWeight: 800 }}>{pagosMes.length}</p></div>
                 </div>
               </Card>
             ) : (
               <Card style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #1250c0 100%)`, border: "none" }}>
                 <p style={{ color: "#ffffffaa", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>TOTAL ACUMULADO</p>
                 <p style={{ color: "#fff", fontSize: 38, fontWeight: 800 }}>{fmt(total)}</p>
-                {espacio.objetivo > 0 && (
-                  <>
-                    <p style={{ color: "#ffffffbb", fontSize: 13, marginTop: 6 }}>Objetivo: {fmt(espacio.objetivo)}</p>
-                    <div style={{ marginTop: 10 }}>
-                      <Barra pct={objPct} color="#ffffff60" />
-                      <p style={{ color: "#ffffffaa", fontSize: 11, marginTop: 6 }}>{objPct}% del objetivo</p>
-                    </div>
-                  </>
-                )}
+                {espacio.objetivo > 0 && (<><p style={{ color: "#ffffffbb", fontSize: 13, marginTop: 6 }}>Objetivo: {fmt(espacio.objetivo)}</p><div style={{ marginTop: 10 }}><Barra pct={objPct} color="#ffffff60" /><p style={{ color: "#ffffffaa", fontSize: 11, marginTop: 6 }}>{objPct}% del objetivo</p></div></>)}
                 <div style={{ display: "flex", gap: 32, marginTop: 14, borderTop: "1px solid #ffffff30", paddingTop: 12 }}>
-                  <div>
-                    <p style={{ color: "#ffffffaa", fontSize: 11 }}>Mi aporte</p>
-                    <p style={{ color: "#fff", fontSize: 18, fontWeight: 800 }}>{fmt(miTotal)}</p>
-                  </div>
-                  <div>
-                    <p style={{ color: "#ffffffaa", fontSize: 11 }}>Otro aporte</p>
-                    <p style={{ color: "#fff", fontSize: 18, fontWeight: 800 }}>{fmt(otroTotal)}</p>
-                  </div>
+                  <div><p style={{ color: "#ffffffaa", fontSize: 11 }}>Mi aporte</p><p style={{ color: "#fff", fontSize: 18, fontWeight: 800 }}>{fmt(miTotal)}</p></div>
+                  <div><p style={{ color: "#ffffffaa", fontSize: 11 }}>Otro aporte</p><p style={{ color: "#fff", fontSize: 18, fontWeight: 800 }}>{fmt(otroTotal)}</p></div>
                 </div>
               </Card>
             )}
-
             <Card>
-              <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>
-                {espacio.tipo === "sueldo" ? "Registrar pago 💼" : "Agregar aporte 💰"}
-              </p>
+              <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>{espacio.tipo === "sueldo" ? "Registrar pago 💼" : "Agregar aporte 💰"}</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <input placeholder={espacio.tipo === "sueldo" ? "Ej: Pago semanal, Adelanto..." : "Ej: Aporte mayo..."} value={desc} onChange={e => setDesc(e.target.value)} />
                 <input placeholder="Monto ($)" type="number" value={monto} onChange={e => setMonto(e.target.value)} />
-                <button onClick={agregar}
-                  style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 14, padding: "13px", fontSize: 14, fontFamily: "inherit", fontWeight: 700, cursor: "pointer" }}>
-                  Guardar
-                </button>
+                <button onClick={agregar} style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 14, padding: "13px", fontSize: 14, fontFamily: "inherit", fontWeight: 700, cursor: "pointer" }}>Guardar</button>
               </div>
             </Card>
           </div>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <p style={{ fontWeight: 700, fontSize: 16 }}>Historial</p>
-            {loading ? (
-              <p style={{ color: C.textMid, textAlign: "center", padding: 20 }}>Cargando...</p>
-            ) : movimientos.length === 0 ? (
-              <Card style={{ textAlign: "center", padding: 30 }}>
-                <p style={{ color: C.textMid }}>Sin movimientos todavía</p>
-              </Card>
-            ) : movimientos.map(m => (
-              <Card key={m.id} style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: m.user_id === userId ? C.accentLight : C.goldLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                  {m.user_id === userId ? "👤" : "👥"}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.descripcion}</p>
-                  <p style={{ color: C.textLight, fontSize: 11, marginTop: 2 }}>{m.fecha} · {m.user_id === userId ? "Vos" : "Otro"}</p>
-                </div>
-                <p style={{ fontWeight: 800, fontSize: 14, color: C.green, flexShrink: 0 }}>+{fmt(m.monto)}</p>
-              </Card>
-            ))}
+            {loading ? <p style={{ color: C.textMid, textAlign: "center", padding: 20 }}>Cargando...</p> :
+              movimientos.length === 0 ? <Card style={{ textAlign: "center", padding: 30 }}><p style={{ color: C.textMid }}>Sin movimientos todavía</p></Card> :
+              movimientos.map(m => (
+                <Card key={m.id} style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: m.user_id === userId ? C.accentLight : C.goldLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{m.user_id === userId ? "👤" : "👥"}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.descripcion}</p>
+                    <p style={{ color: C.textLight, fontSize: 11, marginTop: 2 }}>{m.fecha} · {m.user_id === userId ? "Vos" : "Otro"}</p>
+                  </div>
+                  <p style={{ fontWeight: 800, fontSize: 14, color: C.green, flexShrink: 0 }}>+{fmt(m.monto)}</p>
+                </Card>
+              ))}
           </div>
         </div>
       </div>
@@ -587,11 +637,9 @@ function TabCompartido({ userId, isMobile }) {
   const cargarEspacios = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: miembros } = await supabase
-        .from("espacio_miembros").select("espacio_id").eq("user_id", userId);
+      const { data: miembros } = await supabase.from("espacio_miembros").select("espacio_id").eq("user_id", userId);
       const ids = (miembros || []).map(m => m.espacio_id);
-      const { data: propios } = await supabase
-        .from("espacios").select("*").eq("creado_por", userId);
+      const { data: propios } = await supabase.from("espacios").select("*").eq("creado_por", userId);
       let compartidos = [];
       if (ids.length > 0) {
         const { data } = await supabase.from("espacios").select("*").in("id", ids);
@@ -611,8 +659,7 @@ function TabCompartido({ userId, isMobile }) {
       const codigo = Math.random().toString(36).substring(2, 8).toUpperCase();
       const { data, error } = await supabase.from("espacios").insert({
         nombre: nuevoNombre, tipo: nuevoTipo, codigo, creado_por: userId,
-        objetivo: parseFloat(nuevoObj) || 0,
-        sueldo_acordado: parseFloat(nuevoSueldo) || 0,
+        objetivo: parseFloat(nuevoObj) || 0, sueldo_acordado: parseFloat(nuevoSueldo) || 0,
       }).select().single();
       if (error) { alert("Error: " + error.message); setCreando(false); return; }
       await supabase.from("espacio_miembros").insert({ espacio_id: data.id, user_id: userId, rol: "creador" });
@@ -631,19 +678,15 @@ function TabCompartido({ userId, isMobile }) {
       const codigoLimpio = codigoUnirse.trim().toUpperCase();
       const { data: espacio, error: errEsp } = await supabase
         .from("espacios").select("*").eq("codigo", codigoLimpio).maybeSingle();
-      if (errEsp || !espacio) {
-        setMsgUnirse("Código no encontrado. Verificá que esté bien escrito.");
-        setUniendose(false); return;
-      }
+      if (errEsp || !espacio) { setMsgUnirse("Código no encontrado. Verificá que esté bien escrito."); setUniendose(false); return; }
       const { data: yaEsta } = await supabase.from("espacio_miembros").select("id")
         .eq("espacio_id", espacio.id).eq("user_id", userId).maybeSingle();
       if (yaEsta) { setMsgUnirse("Ya sos miembro de este espacio."); setUniendose(false); return; }
-      const { error: errM } = await supabase.from("espacio_miembros")
-        .insert({ espacio_id: espacio.id, user_id: userId, rol: "miembro" });
+      const { error: errM } = await supabase.from("espacio_miembros").insert({ espacio_id: espacio.id, user_id: userId, rol: "miembro" });
       if (errM) { setMsgUnirse("Error al unirse: " + errM.message); setUniendose(false); return; }
       setModalUnirse(false); setCodigoUnirse(""); setMsgUnirse("");
       await cargarEspacios();
-    } catch (e) { setMsgUnirse("Error inesperado. Intentá de nuevo."); }
+    } catch (e) { setMsgUnirse("Error inesperado."); }
     setUniendose(false);
   };
 
@@ -665,88 +708,73 @@ function TabCompartido({ userId, isMobile }) {
         </div>
       </div>
 
-      {loading ? (
-        <p style={{ color: C.textMid, textAlign: "center", padding: 40 }}>Cargando...</p>
-      ) : espacios.length === 0 ? (
-        <Card style={{ textAlign: "center", padding: 40 }}>
-          <p style={{ fontSize: 36, marginBottom: 12 }}>🤝</p>
-          <p style={{ fontWeight: 700, fontSize: 15 }}>Sin espacios todavía</p>
-          <p style={{ color: C.textMid, fontSize: 13, marginTop: 6 }}>Creá uno o unite con un código</p>
-        </Card>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12 }}>
-          {espacios.map(e => (
-            <Card key={e.id} style={{ cursor: "pointer" }} onClick={() => setModalDetalle(e)}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 46, height: 46, borderRadius: 14, background: C.accentLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>
-                  {iconoTipo(e.tipo)}
+      {loading ? <p style={{ color: C.textMid, textAlign: "center", padding: 40 }}>Cargando...</p> :
+        espacios.length === 0 ? (
+          <Card style={{ textAlign: "center", padding: 40 }}>
+            <p style={{ fontSize: 36, marginBottom: 12 }}>🤝</p>
+            <p style={{ fontWeight: 700, fontSize: 15 }}>Sin espacios todavía</p>
+            <p style={{ color: C.textMid, fontSize: 13, marginTop: 6 }}>Creá uno o unite con un código</p>
+          </Card>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12 }}>
+            {espacios.map(e => (
+              <Card key={e.id} style={{ cursor: "pointer" }} onClick={() => setModalDetalle(e)}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 46, height: 46, borderRadius: 14, background: C.accentLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>{iconoTipo(e.tipo)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.nombre}</p>
+                    <p style={{ color: C.textMid, fontSize: 12, marginTop: 2, textTransform: "capitalize" }}>{e.tipo} · <b style={{ color: C.accent }}>{e.codigo}</b></p>
+                  </div>
+                  <p style={{ color: C.textLight, fontSize: 18, flexShrink: 0 }}>›</p>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.nombre}</p>
-                  <p style={{ color: C.textMid, fontSize: 12, marginTop: 2, textTransform: "capitalize" }}>
-                    {e.tipo} · <b style={{ color: C.accent }}>{e.codigo}</b>
-                  </p>
-                </div>
-                <p style={{ color: C.textLight, fontSize: 18, flexShrink: 0 }}>›</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+              </Card>
+            ))}
+          </div>
+        )
+      }
 
       {modalNuevo && (
-        <div onClick={e => e.target === e.currentTarget && setModalNuevo(false)}
-          style={{ position: "fixed", inset: 0, background: "#00000060", zIndex: 200, display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center" }}>
-          <div style={{ background: C.white, borderRadius: isMobile ? "24px 24px 0 0" : 24, padding: 24, width: "100%", maxWidth: 480, animation: "fadeUp 0.3s ease", boxSizing: "border-box" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <p style={{ fontWeight: 800, fontSize: 18 }}>Nuevo espacio</p>
-              <button onClick={() => setModalNuevo(false)} style={{ width: 32, height: 32, borderRadius: 10, background: C.bg, border: "none", cursor: "pointer", fontSize: 16 }}>✕</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <input placeholder="Nombre (ej: Vacaciones 2026)" value={nuevoNombre} onChange={e => setNuevoNombre(e.target.value)} />
-              <select value={nuevoTipo} onChange={e => setNuevoTipo(e.target.value)}>
-                <option value="ahorro">🐷 Ahorro compartido</option>
-                <option value="sueldo">💼 Registro de sueldo</option>
-                <option value="general">🤝 General</option>
-              </select>
-              {nuevoTipo === "ahorro" && <input placeholder="Objetivo ($)" type="number" value={nuevoObj} onChange={e => setNuevoObj(e.target.value)} />}
-              {nuevoTipo === "sueldo" && <input placeholder="Sueldo acordado ($)/mes" type="number" value={nuevoSueldo} onChange={e => setNuevoSueldo(e.target.value)} />}
-              <button onClick={crearEspacio} disabled={creando}
-                style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 14, padding: "14px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", opacity: creando ? 0.7 : 1 }}>
-                {creando ? "Creando..." : "Crear espacio"}
-              </button>
-            </div>
+        <Modal title="✨ Nuevo espacio" onClose={() => setModalNuevo(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <input placeholder="Nombre (ej: Vacaciones 2026)" value={nuevoNombre} onChange={e => setNuevoNombre(e.target.value)} />
+            <select value={nuevoTipo} onChange={e => setNuevoTipo(e.target.value)}>
+              <option value="ahorro">🐷 Ahorro compartido</option>
+              <option value="sueldo">💼 Registro de sueldo</option>
+              <option value="general">🤝 General</option>
+            </select>
+            {nuevoTipo === "ahorro" && <input placeholder="Objetivo de ahorro ($)" type="number" value={nuevoObj} onChange={e => setNuevoObj(e.target.value)} />}
+            {nuevoTipo === "sueldo" && <input placeholder="Sueldo mensual acordado ($)" type="number" value={nuevoSueldo} onChange={e => setNuevoSueldo(e.target.value)} />}
+            <button onClick={crearEspacio} disabled={creando}
+              style={{ background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, color: "#fff", border: "none", borderRadius: 14, padding: "14px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", opacity: creando ? 0.7 : 1, boxShadow: `0 6px 20px ${C.accent}40` }}>
+              {creando ? "Creando..." : "Crear espacio 🚀"}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {modalUnirse && (
-        <div onClick={e => e.target === e.currentTarget && setModalUnirse(false)}
-          style={{ position: "fixed", inset: 0, background: "#00000060", zIndex: 200, display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center" }}>
-          <div style={{ background: C.white, borderRadius: isMobile ? "24px 24px 0 0" : 24, padding: 24, width: "100%", maxWidth: 480, animation: "fadeUp 0.3s ease", boxSizing: "border-box" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <p style={{ fontWeight: 800, fontSize: 18 }}>Unirse a un espacio</p>
-              <button onClick={() => setModalUnirse(false)} style={{ width: 32, height: 32, borderRadius: 10, background: C.bg, border: "none", cursor: "pointer", fontSize: 16 }}>✕</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Modal title="🔑 Unirse a un espacio" onClose={() => setModalUnirse(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <p style={{ color: C.textMid, fontSize: 14 }}>Ingresá el código que te compartieron:</p>
+            <div style={{ background: C.bg, borderRadius: 16, padding: "20px 16px", textAlign: "center" }}>
               <input
-                placeholder="Código del espacio (ej: ABC123)"
+                placeholder="ABC123"
                 value={codigoUnirse}
                 onChange={e => setCodigoUnirse(e.target.value.toUpperCase())}
-                style={{ textTransform: "uppercase", letterSpacing: 3, fontSize: 20, fontWeight: 800, textAlign: "center" }}
+                style={{ textTransform: "uppercase", letterSpacing: 8, fontSize: 28, fontWeight: 800, textAlign: "center", border: `2px solid ${C.border}`, borderRadius: 14, background: C.white }}
               />
-              {msgUnirse && (
-                <p style={{ color: msgUnirse.includes("miembro") ? C.gold : C.red, fontSize: 13, fontWeight: 600, textAlign: "center" }}>
-                  {msgUnirse}
-                </p>
-              )}
-              <button onClick={unirseEspacio} disabled={uniendose}
-                style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 14, padding: "14px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", opacity: uniendose ? 0.7 : 1 }}>
-                {uniendose ? "Verificando código..." : "Unirse"}
-              </button>
             </div>
+            {msgUnirse && (
+              <div style={{ padding: "10px 14px", borderRadius: 12, background: msgUnirse.includes("miembro") ? C.goldLight : C.redLight }}>
+                <p style={{ color: msgUnirse.includes("miembro") ? C.gold : C.red, fontSize: 13, fontWeight: 600 }}>{msgUnirse}</p>
+              </div>
+            )}
+            <button onClick={unirseEspacio} disabled={uniendose}
+              style={{ background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, color: "#fff", border: "none", borderRadius: 14, padding: "14px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", opacity: uniendose ? 0.7 : 1, boxShadow: `0 6px 20px ${C.accent}40` }}>
+              {uniendose ? "Verificando..." : "Unirse →"}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {modalDetalle && (
@@ -780,9 +808,9 @@ export default function App() {
   const chatRef = useRef(null);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
   }, []);
 
   useEffect(() => {
@@ -802,8 +830,7 @@ export default function App() {
 
   const cargarBalances = useCallback(async () => {
     if (!session) return;
-    const { data } = await supabase.from("balances").select("*")
-      .eq("user_id", session.user.id).maybeSingle();
+    const { data } = await supabase.from("balances").select("*").eq("user_id", session.user.id).maybeSingle();
     if (data) setBalances(data);
   }, [session]);
 
@@ -828,9 +855,7 @@ export default function App() {
     const ing = (txs || []).filter(t => t.tipo === "ingreso").reduce((a, b) => a + b.monto, 0);
     const gas = (txs || []).filter(t => t.tipo === "gasto").reduce((a, b) => a + b.monto, 0);
     const nombreMes = hoy.toLocaleString("es-AR", { month: "long", year: "numeric" });
-    await supabase.from("historial_mensual").insert({
-      user_id: session.user.id, mes: nombreMes, ingresos: ing, gastos: gas, ahorro: ing - gas,
-    });
+    await supabase.from("historial_mensual").insert({ user_id: session.user.id, mes: nombreMes, ingresos: ing, gastos: gas, ahorro: ing - gas });
     cargarHistorial();
   }, [session, cargarHistorial]);
 
@@ -878,8 +903,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
+          model: "claude-sonnet-4-20250514", max_tokens: 1000,
           system: `Sos un asesor financiero amigable. Hablás en español rioplatense.
 Datos: Ingresos: ${fmt(ingresos)}, Gastos: ${fmt(gastos)}, Ahorrando: ${fmt(ahorrando)}/mes.
 Balances: Efectivo ${fmt(balances.efectivo||0)}, Banco ${fmt(balances.banco||0)}, MercadoPago ${fmt(balances.mercadopago||0)}, Ahorros ${fmt(balances.ahorros||0)}, Deudas ${fmt(balances.deudas||0)}.
@@ -906,8 +930,7 @@ Respondé simple, claro y con emojis. Máximo 3 párrafos.`,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 600,
+          model: "claude-sonnet-4-20250514", max_tokens: 600,
           system: `Asesor financiero. Respondé SOLO con JSON sin markdown: {"veredicto":"COMPRAR|ESPERAR|NO COMPRAR","emoji":"","razon":"frase corta","consejo":"consejo práctico"}`,
           messages: [{ role: "user", content: `Gana ${fmt(ingresos)}/mes, ahorra ${fmt(ahorrando)}/mes. Quiere comprar: ${compra.nombre} por ${fmt(precio)} (${horas}hs de trabajo, ${pct}% del ingreso).` }],
         }),
@@ -928,6 +951,7 @@ Respondé simple, claro y con emojis. Máximo 3 párrafos.`,
     body { background: ${C.bg}; color: ${C.text}; font-family: 'Plus Jakarta Sans', sans-serif; }
     ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
     @keyframes fadeUp { from { opacity:0; transform:translateY(12px);} to { opacity:1; transform:translateY(0);} }
+    @keyframes popIn  { from { opacity:0; transform:scale(0.95);} to { opacity:1; transform:scale(1);} }
     @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.5} }
     @keyframes spin   { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
     input, select { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; padding: 12px 14px; border: 2px solid ${C.border}; border-radius: 14px; background: ${C.white}; color: ${C.text}; width: 100%; outline: none; transition: border-color 0.2s; }
@@ -935,175 +959,55 @@ Respondé simple, claro y con emojis. Máximo 3 párrafos.`,
     select option { background: ${C.white}; }
   `;
 
-  const userNombre = session?.user?.user_metadata?.nombre || session?.user?.email?.split("@")[0] || "Vos";
+  const userNombre = balances.nombre_usuario || session?.user?.user_metadata?.nombre || session?.user?.email?.split("@")[0] || "Vos";
 
   if (session === undefined) return <><style>{css}</style><Spinner /></>;
   if (!session) return <><style>{css}</style><PantallaLogin /></>;
 
-  // ── LAYOUT ESCRITORIO ──────────────────────────────────────────────────────
-  if (!isMobile) {
-    return (
-      <>
-        <style>{css}</style>
-        <div style={{ display: "flex", minHeight: "100vh", background: C.bg }}>
-          {/* SIDEBAR */}
-          <div style={{ width: 240, background: C.white, borderRight: `2px solid ${C.border}`, display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, height: "100vh", zIndex: 50 }}>
-            <div style={{ padding: "24px 20px", borderBottom: `1px solid ${C.border}` }}>
-              <p style={{ fontSize: 22, marginBottom: 4 }}>💰</p>
-              <p style={{ fontWeight: 800, fontSize: 16, color: C.text }}>Mis Finanzas</p>
-              <p style={{ fontSize: 12, color: C.textMid, marginTop: 2 }}>Hola, {userNombre} 👋</p>
-            </div>
-            <nav style={{ flex: 1, padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
-              {NAV.map(n => (
-                <button key={n.id} onClick={() => setTab(n.id)}
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, border: "none", background: tab === n.id ? C.accentLight : "transparent", color: tab === n.id ? C.accent : C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }}>
-                  <span style={{ fontSize: 20 }}>{n.icon}</span>
-                  {n.label}
-                </button>
-              ))}
-            </nav>
-            <div style={{ padding: "16px 12px", borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={() => setModalAI(true)}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 14, border: `2px solid ${C.accent}`, background: C.accentLight, color: C.accent, fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                🤖 Asesor IA
-              </button>
-              <button onClick={() => { setCompraRes(null); setModalCompra(true); }}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 14, border: `2px solid ${C.border}`, background: C.white, color: C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                🛒 ¿Me conviene?
-              </button>
-              <button onClick={cerrarSesion}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 14, border: `2px solid ${C.border}`, background: C.white, color: C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                🚪 Cerrar sesión
-              </button>
-            </div>
-          </div>
-
-          {/* CONTENIDO */}
-          <div style={{ marginLeft: 240, flex: 1, display: "flex", flexDirection: "column" }}>
-            <div style={{ background: C.white, borderBottom: `2px solid ${C.border}`, padding: "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40 }}>
-              <p style={{ fontWeight: 800, fontSize: 20, color: C.text }}>
-                {NAV.find(n => n.id === tab)?.icon} {NAV.find(n => n.id === tab)?.label}
-              </p>
-              <button onClick={() => setModalAdd(true)}
-                style={{ padding: "10px 24px", borderRadius: 14, background: C.accent, color: "#fff", border: "none", fontFamily: "inherit", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
-                + Agregar movimiento
-              </button>
-            </div>
-            <div style={{ flex: 1, padding: "24px 32px 40px", overflowY: "auto" }}>
-              {tab === "inicio"      && <TabInicio transacciones={transacciones} balances={balances} setBalances={setBalances} userId={session.user.id} historial={historial} isMobile={false} />}
-              {tab === "movimientos" && <TabMovimientos transacciones={transacciones} onEliminar={eliminarTx} isMobile={false} />}
-              {tab === "metas"       && <TabMetas transacciones={transacciones} balances={balances} isMobile={false} />}
-              {tab === "compartido"  && <TabCompartido userId={session.user.id} isMobile={false} />}
-            </div>
-          </div>
-        </div>
-
-        {/* Modales escritorio */}
-        {renderModales({ modalAdd, setModalAdd, modalAI, setModalAI, modalCompra, setModalCompra, newTx, setNewTx, agregarTx, aiChat, aiInput, setAiInput, aiLoading, enviarAI, chatRef, compra, setCompra, compraRes, compraLoading, analizarCompra, setCompraRes, isMobile: false })}
-      </>
-    );
-  }
-
-  // ── LAYOUT MÓVIL ──────────────────────────────────────────────────────────
-  return (
-    <>
-      <style>{css}</style>
-      <div style={{ maxWidth: "100%", minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, overflowX: "hidden" }}>
-        <div style={{ background: C.white, borderBottom: `2px solid ${C.border}`, padding: "14px 16px", position: "sticky", top: 0, zIndex: 50 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 10, color: C.textLight, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Mis Finanzas</p>
-              <p style={{ fontWeight: 800, fontSize: 17, color: C.text, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Hola, {userNombre} 👋</p>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              <button onClick={() => { setCompraRes(null); setModalCompra(true); }}
-                style={{ height: 40, width: 40, borderRadius: 12, border: `2px solid ${C.border}`, background: C.white, cursor: "pointer", fontSize: 17 }}>🛒</button>
-              <button onClick={() => setModalAI(true)}
-                style={{ height: 40, width: 40, borderRadius: 12, border: `2px solid ${C.accent}`, background: C.accentLight, cursor: "pointer", fontSize: 17 }}>🤖</button>
-              <button onClick={() => setModalAdd(true)}
-                style={{ height: 40, width: 40, borderRadius: 12, background: C.accent, color: "#fff", border: "none", cursor: "pointer", fontSize: 22, fontWeight: 800 }}>+</button>
-              <button onClick={cerrarSesion}
-                style={{ height: 40, width: 40, borderRadius: 12, border: `2px solid ${C.border}`, background: C.white, cursor: "pointer", fontSize: 16 }}>🚪</button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ flex: 1, padding: "14px 12px 100px", overflowY: "auto", overflowX: "hidden" }}>
-          {tab === "inicio"      && <TabInicio transacciones={transacciones} balances={balances} setBalances={setBalances} userId={session.user.id} historial={historial} isMobile={true} />}
-          {tab === "movimientos" && <TabMovimientos transacciones={transacciones} onEliminar={eliminarTx} isMobile={true} />}
-          {tab === "metas"       && <TabMetas transacciones={transacciones} balances={balances} isMobile={true} />}
-          {tab === "compartido"  && <TabCompartido userId={session.user.id} isMobile={true} />}
-        </div>
-
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.white, borderTop: `2px solid ${C.border}`, display: "flex", zIndex: 50 }}>
-          {NAV.map(n => (
-            <button key={n.id} onClick={() => setTab(n.id)}
-              style={{ flex: 1, padding: "10px 4px 12px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: 22 }}>{n.icon}</span>
-              <span style={{ fontSize: 9, fontFamily: "inherit", fontWeight: 700, color: tab === n.id ? C.accent : C.textLight }}>{n.label}</span>
-              {tab === n.id && <div style={{ width: 18, height: 3, borderRadius: 99, background: C.accent }} />}
-            </button>
-          ))}
-        </div>
-
-        {renderModales({ modalAdd, setModalAdd, modalAI, setModalAI, modalCompra, setModalCompra, newTx, setNewTx, agregarTx, aiChat, aiInput, setAiInput, aiLoading, enviarAI, chatRef, compra, setCompra, compraRes, compraLoading, analizarCompra, setCompraRes, isMobile: true })}
-      </div>
-    </>
-  );
-}
-
-// ─── MODALES (compartidos entre mobile y desktop) ─────────────────────────────
-function renderModales({ modalAdd, setModalAdd, modalAI, setModalAI, modalCompra, setModalCompra, newTx, setNewTx, agregarTx, aiChat, aiInput, setAiInput, aiLoading, enviarAI, chatRef, compra, setCompra, compraRes, compraLoading, analizarCompra, setCompraRes, isMobile }) {
-  const modalStyle = {
-    position: "fixed", inset: 0, background: "#00000060", zIndex: 200,
-    display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center",
-  };
-  const panelStyle = {
-    background: C.white,
-    borderRadius: isMobile ? "24px 24px 0 0" : 24,
-    padding: 24, width: "100%", maxWidth: 520,
-    animation: "fadeUp 0.3s ease", boxSizing: "border-box",
+  const renderContenido = () => {
+    switch(tab) {
+      case "inicio":      return <TabInicio transacciones={transacciones} balances={balances} setBalances={setBalances} userId={session.user.id} historial={historial} isMobile={isMobile} />;
+      case "movimientos": return <TabMovimientos transacciones={transacciones} onEliminar={eliminarTx} isMobile={isMobile} />;
+      case "metas":       return <TabMetas transacciones={transacciones} balances={balances} isMobile={isMobile} />;
+      case "compartido":  return <TabCompartido userId={session.user.id} isMobile={isMobile} />;
+      case "perfil":      return <TabPerfil session={session} balances={balances} setBalances={setBalances} onCerrarSesion={cerrarSesion} />;
+      default:            return null;
+    }
   };
 
-  return (
+  const renderModales = () => (
     <>
       {modalAdd && (
-        <div onClick={e => e.target === e.currentTarget && setModalAdd(false)} style={modalStyle}>
-          <div style={panelStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <p style={{ fontWeight: 800, fontSize: 18 }}>Nuevo movimiento</p>
-              <button onClick={() => setModalAdd(false)} style={{ width: 32, height: 32, borderRadius: 10, background: C.bg, border: "none", cursor: "pointer", fontSize: 16 }}>✕</button>
+        <Modal title="➕ Nuevo movimiento" onClose={() => setModalAdd(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <input placeholder="¿En qué gastaste o de dónde ingresó?" value={newTx.descripcion} onChange={e => setNewTx({ ...newTx, descripcion: e.target.value })} />
+            <input placeholder="Monto ($)" type="number" value={newTx.monto} onChange={e => setNewTx({ ...newTx, monto: e.target.value })} />
+            <div style={{ display: "flex", gap: 10 }}>
+              {[["gasto", "💸 Gasto"], ["ingreso", "💰 Ingreso"]].map(([val, label]) => (
+                <button key={val} onClick={() => setNewTx({ ...newTx, tipo: val })}
+                  style={{ flex: 1, padding: "12px", border: `2px solid ${newTx.tipo === val ? (val === "gasto" ? C.red : C.green) : C.border}`, borderRadius: 14, background: newTx.tipo === val ? (val === "gasto" ? C.redLight : C.greenLight) : C.white, color: newTx.tipo === val ? (val === "gasto" ? C.red : C.green) : C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  {label}
+                </button>
+              ))}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <input placeholder="¿En qué gastaste o de dónde ingresó?" value={newTx.descripcion} onChange={e => setNewTx({ ...newTx, descripcion: e.target.value })} />
-              <input placeholder="Monto ($)" type="number" value={newTx.monto} onChange={e => setNewTx({ ...newTx, monto: e.target.value })} />
-              <div style={{ display: "flex", gap: 10 }}>
-                {[["gasto", "💸 Gasto"], ["ingreso", "💰 Ingreso"]].map(([val, label]) => (
-                  <button key={val} onClick={() => setNewTx({ ...newTx, tipo: val })}
-                    style={{ flex: 1, padding: "12px", border: `2px solid ${newTx.tipo === val ? (val === "gasto" ? C.red : C.green) : C.border}`, borderRadius: 14, background: newTx.tipo === val ? (val === "gasto" ? C.redLight : C.greenLight) : C.white, color: newTx.tipo === val ? (val === "gasto" ? C.red : C.green) : C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <select value={newTx.cat} onChange={e => setNewTx({ ...newTx, cat: e.target.value })}>
-                {Object.entries(CATEGORIAS).map(([k, v]) => <option key={k} value={k}>{v.icono} {v.label}</option>)}
-              </select>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: C.textMid, cursor: "pointer" }}>
-                <input type="checkbox" checked={newTx.recurrente} onChange={e => setNewTx({ ...newTx, recurrente: e.target.checked })} style={{ width: "auto", accentColor: C.accent }} />
-                🔄 Se repite todos los meses
-              </label>
-              <button onClick={agregarTx} style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 14, padding: "13px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer" }}>
-                Guardar
-              </button>
-            </div>
+            <select value={newTx.cat} onChange={e => setNewTx({ ...newTx, cat: e.target.value })}>
+              {Object.entries(CATEGORIAS).map(([k, v]) => <option key={k} value={k}>{v.icono} {v.label}</option>)}
+            </select>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: C.textMid, cursor: "pointer" }}>
+              <input type="checkbox" checked={newTx.recurrente} onChange={e => setNewTx({ ...newTx, recurrente: e.target.checked })} style={{ width: "auto", accentColor: C.accent }} />
+              🔄 Se repite todos los meses
+            </label>
+            <button onClick={agregarTx} style={{ background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, color: "#fff", border: "none", borderRadius: 14, padding: "14px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", boxShadow: `0 6px 20px ${C.accent}40` }}>
+              Guardar
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {modalAI && (
         <div onClick={e => e.target === e.currentTarget && setModalAI(false)}
-          style={{ ...modalStyle, alignItems: isMobile ? "flex-end" : "center" }}>
-          <div style={{ ...panelStyle, height: isMobile ? "80vh" : "70vh", maxHeight: 700, display: "flex", flexDirection: "column", padding: 0 }}>
+          style={{ position: "fixed", inset: 0, background: "#00000065", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: C.white, borderRadius: 24, width: "100%", maxWidth: 520, height: "75vh", maxHeight: 680, display: "flex", flexDirection: "column", boxShadow: "0 20px 60px #00000025", animation: "popIn 0.25s ease" }}>
             <div style={{ padding: "18px 20px", borderBottom: `2px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 42, height: 42, borderRadius: 12, background: C.accentLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🤖</div>
@@ -1112,7 +1016,7 @@ function renderModales({ modalAdd, setModalAdd, modalAI, setModalAI, modalCompra
                   <p style={{ color: C.green, fontSize: 11, fontWeight: 700 }}>● En línea</p>
                 </div>
               </div>
-              <button onClick={() => setModalAI(false)} style={{ width: 32, height: 32, borderRadius: 10, background: C.bg, border: "none", cursor: "pointer", fontSize: 16 }}>✕</button>
+              <button onClick={() => setModalAI(false)} style={{ width: 34, height: 34, borderRadius: 10, background: C.bg, border: "none", cursor: "pointer", fontSize: 17 }}>✕</button>
             </div>
             <div ref={chatRef} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
               {aiChat.map((m, i) => (
@@ -1132,59 +1036,142 @@ function renderModales({ modalAdd, setModalAdd, modalAI, setModalAI, modalCompra
                 </button>
               ))}
             </div>
-            <div style={{ padding: 12, borderTop: `2px solid ${C.border}`, display: "flex", gap: 8, flexShrink: 0 }}>
+            <div style={{ padding: 14, borderTop: `2px solid ${C.border}`, display: "flex", gap: 8, flexShrink: 0 }}>
               <input placeholder="Escribí tu consulta..." value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key === "Enter" && enviarAI()} style={{ flex: 1 }} />
-              <button onClick={enviarAI} style={{ padding: "0 16px", background: C.accent, color: "#fff", border: "none", borderRadius: 14, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: aiLoading ? 0.6 : 1, flexShrink: 0 }}>
-                Enviar
-              </button>
+              <button onClick={enviarAI} style={{ padding: "0 18px", background: C.accent, color: "#fff", border: "none", borderRadius: 14, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: aiLoading ? 0.6 : 1, flexShrink: 0 }}>Enviar</button>
             </div>
           </div>
         </div>
       )}
 
       {modalCompra && (
-        <div onClick={e => e.target === e.currentTarget && (setModalCompra(false), setCompraRes(null))} style={modalStyle}>
-          <div style={{ ...panelStyle, maxHeight: "90vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <p style={{ fontWeight: 800, fontSize: 18 }}>¿Me conviene comprarlo?</p>
-              <button onClick={() => { setModalCompra(false); setCompraRes(null); }} style={{ width: 32, height: 32, borderRadius: 10, background: C.bg, border: "none", cursor: "pointer", fontSize: 16 }}>✕</button>
-            </div>
-            <p style={{ color: C.textMid, fontSize: 13, marginBottom: 18 }}>Analizá cualquier compra antes de hacerla.</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
-              <input placeholder="¿Qué querés comprar?" value={compra.nombre} onChange={e => setCompra({ ...compra, nombre: e.target.value })} />
-              <input placeholder="Precio ($)" type="number" value={compra.precio} onChange={e => setCompra({ ...compra, precio: e.target.value })} />
-              <button onClick={analizarCompra} style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 14, padding: "13px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", opacity: compraLoading ? 0.7 : 1 }}>
-                {compraLoading ? "Analizando... 🧠" : "Analizar compra"}
-              </button>
-            </div>
-            {compraRes && (
-              <div style={{ animation: "fadeUp 0.3s ease" }}>
-                <div style={{ padding: 18, borderRadius: 18, textAlign: "center", marginBottom: 12, background: compraRes.veredicto === "COMPRAR" ? C.greenLight : compraRes.veredicto === "NO COMPRAR" ? C.redLight : C.goldLight, border: `2px solid ${compraRes.veredicto === "COMPRAR" ? C.green : compraRes.veredicto === "NO COMPRAR" ? C.red : C.gold}50` }}>
-                  <p style={{ fontSize: 40, marginBottom: 8 }}>{compraRes.emoji}</p>
-                  <p style={{ fontWeight: 800, fontSize: 24, color: compraRes.veredicto === "COMPRAR" ? C.green : compraRes.veredicto === "NO COMPRAR" ? C.red : C.gold }}>{compraRes.veredicto}</p>
-                  <p style={{ color: C.textMid, fontSize: 13, marginTop: 8 }}>{compraRes.razon}</p>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                  <Card style={{ textAlign: "center", padding: 14, background: C.goldLight }}>
-                    <p style={{ fontSize: 24, marginBottom: 4 }}>⏰</p>
-                    <p style={{ fontWeight: 800, fontSize: 22, color: C.gold }}>{compraRes.horas}hs</p>
-                    <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>de trabajo</p>
-                  </Card>
-                  <Card style={{ textAlign: "center", padding: 14, background: C.purpleLight }}>
-                    <p style={{ fontSize: 24, marginBottom: 4 }}>📊</p>
-                    <p style={{ fontWeight: 800, fontSize: 22, color: C.purple }}>{compraRes.pct}%</p>
-                    <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>de tu ingreso</p>
-                  </Card>
-                </div>
-                <Card style={{ background: C.accentLight, border: `1.5px solid ${C.accent}30` }}>
-                  <p style={{ fontWeight: 700, fontSize: 14, color: C.accent, marginBottom: 6 }}>💡 Mi consejo</p>
-                  <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.6 }}>{compraRes.consejo}</p>
+        <Modal title="🛒 ¿Me conviene comprarlo?" onClose={() => { setModalCompra(false); setCompraRes(null); }}>
+          <p style={{ color: C.textMid, fontSize: 13, marginBottom: 16 }}>Analizá cualquier compra antes de hacerla.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
+            <input placeholder="¿Qué querés comprar?" value={compra.nombre} onChange={e => setCompra({ ...compra, nombre: e.target.value })} />
+            <input placeholder="Precio ($)" type="number" value={compra.precio} onChange={e => setCompra({ ...compra, precio: e.target.value })} />
+            <button onClick={analizarCompra} style={{ background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, color: "#fff", border: "none", borderRadius: 14, padding: "13px", fontSize: 15, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", opacity: compraLoading ? 0.7 : 1, boxShadow: `0 6px 20px ${C.accent}40` }}>
+              {compraLoading ? "Analizando... 🧠" : "Analizar compra"}
+            </button>
+          </div>
+          {compraRes && (
+            <div style={{ animation: "fadeUp 0.3s ease" }}>
+              <div style={{ padding: 18, borderRadius: 18, textAlign: "center", marginBottom: 12, background: compraRes.veredicto === "COMPRAR" ? C.greenLight : compraRes.veredicto === "NO COMPRAR" ? C.redLight : C.goldLight, border: `2px solid ${compraRes.veredicto === "COMPRAR" ? C.green : compraRes.veredicto === "NO COMPRAR" ? C.red : C.gold}40` }}>
+                <p style={{ fontSize: 40, marginBottom: 8 }}>{compraRes.emoji}</p>
+                <p style={{ fontWeight: 800, fontSize: 22, color: compraRes.veredicto === "COMPRAR" ? C.green : compraRes.veredicto === "NO COMPRAR" ? C.red : C.gold }}>{compraRes.veredicto}</p>
+                <p style={{ color: C.textMid, fontSize: 13, marginTop: 8 }}>{compraRes.razon}</p>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <Card style={{ textAlign: "center", padding: 14, background: C.goldLight }}>
+                  <p style={{ fontSize: 22, marginBottom: 4 }}>⏰</p>
+                  <p style={{ fontWeight: 800, fontSize: 22, color: C.gold }}>{compraRes.horas}hs</p>
+                  <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>de trabajo</p>
+                </Card>
+                <Card style={{ textAlign: "center", padding: 14, background: C.purpleLight }}>
+                  <p style={{ fontSize: 22, marginBottom: 4 }}>📊</p>
+                  <p style={{ fontWeight: 800, fontSize: 22, color: C.purple }}>{compraRes.pct}%</p>
+                  <p style={{ color: C.textMid, fontSize: 11, marginTop: 4 }}>de tu ingreso</p>
                 </Card>
               </div>
-            )}
+              <Card style={{ background: C.accentLight, border: `1.5px solid ${C.accent}30` }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: C.accent, marginBottom: 6 }}>💡 Mi consejo</p>
+                <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.6 }}>{compraRes.consejo}</p>
+              </Card>
+            </div>
+          )}
+        </Modal>
+      )}
+    </>
+  );
+
+  // ── DESKTOP ────────────────────────────────────────────────────────────────
+  if (!isMobile) {
+    return (
+      <>
+        <style>{css}</style>
+        <div style={{ display: "flex", minHeight: "100vh", background: C.bg }}>
+          <div style={{ width: 250, background: C.white, borderRight: `2px solid ${C.border}`, display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, height: "100vh", zIndex: 50 }}>
+            <div style={{ padding: "24px 20px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, marginBottom: 10 }}>💰</div>
+              <p style={{ fontWeight: 800, fontSize: 16, color: C.text }}>Mis Finanzas</p>
+              <p style={{ fontSize: 12, color: C.textMid, marginTop: 2 }}>Hola, {userNombre} 👋</p>
+            </div>
+            <nav style={{ flex: 1, padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+              {NAV_DESKTOP.map(n => (
+                <button key={n.id} onClick={() => setTab(n.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, border: "none", background: tab === n.id ? C.accentLight : "transparent", color: tab === n.id ? C.accent : C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }}>
+                  <span style={{ fontSize: 20 }}>{n.icon}</span>{n.label}
+                  {tab === n.id && <div style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: C.accent }} />}
+                </button>
+              ))}
+            </nav>
+            <div style={{ padding: "16px 12px", borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
+              <button onClick={() => setModalAI(true)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 14, border: `2px solid ${C.accent}`, background: C.accentLight, color: C.accent, fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                🤖 Asesor IA
+              </button>
+              <button onClick={() => { setCompraRes(null); setModalCompra(true); }}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 14, border: `2px solid ${C.border}`, background: C.white, color: C.textMid, fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                🛒 ¿Me conviene?
+              </button>
+            </div>
+          </div>
+          <div style={{ marginLeft: 250, flex: 1, display: "flex", flexDirection: "column" }}>
+            <div style={{ background: C.white, borderBottom: `2px solid ${C.border}`, padding: "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40 }}>
+              <p style={{ fontWeight: 800, fontSize: 20, color: C.text }}>
+                {NAV_DESKTOP.find(n => n.id === tab)?.icon} {NAV_DESKTOP.find(n => n.id === tab)?.label}
+              </p>
+              <button onClick={() => setModalAdd(true)}
+                style={{ padding: "10px 24px", borderRadius: 14, background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, color: "#fff", border: "none", fontFamily: "inherit", fontWeight: 700, fontSize: 15, cursor: "pointer", boxShadow: `0 4px 14px ${C.accent}40` }}>
+                + Agregar movimiento
+              </button>
+            </div>
+            <div style={{ flex: 1, padding: "24px 32px 40px", overflowY: "auto" }}>
+              {renderContenido()}
+            </div>
           </div>
         </div>
-      )}
+        {renderModales()}
+      </>
+    );
+  }
+
+  // ── MÓVIL ──────────────────────────────────────────────────────────────────
+  return (
+    <>
+      <style>{css}</style>
+      <div style={{ maxWidth: "100%", minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, overflowX: "hidden" }}>
+        <div style={{ background: C.white, borderBottom: `2px solid ${C.border}`, padding: "14px 16px", position: "sticky", top: 0, zIndex: 50 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 10, color: C.textLight, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Mis Finanzas</p>
+              <p style={{ fontWeight: 800, fontSize: 17, color: C.text, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Hola, {userNombre} 👋</p>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <button onClick={() => { setCompraRes(null); setModalCompra(true); }}
+                style={{ height: 40, width: 40, borderRadius: 12, border: `2px solid ${C.border}`, background: C.white, cursor: "pointer", fontSize: 17 }}>🛒</button>
+              <button onClick={() => setModalAI(true)}
+                style={{ height: 40, width: 40, borderRadius: 12, border: `2px solid ${C.accent}`, background: C.accentLight, cursor: "pointer", fontSize: 17 }}>🤖</button>
+              <button onClick={() => setModalAdd(true)}
+                style={{ height: 40, width: 40, borderRadius: 12, background: `linear-gradient(135deg, ${C.accent}, #1250c0)`, color: "#fff", border: "none", cursor: "pointer", fontSize: 22, fontWeight: 800 }}>+</button>
+            </div>
+          </div>
+        </div>
+        <div style={{ flex: 1, padding: "14px 12px 100px", overflowY: "auto", overflowX: "hidden" }}>
+          {renderContenido()}
+        </div>
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.white, borderTop: `2px solid ${C.border}`, display: "flex", zIndex: 50, paddingBottom: "env(safe-area-inset-bottom)" }}>
+          {NAV_MOBILE.map(n => (
+            <button key={n.id} onClick={() => setTab(n.id)}
+              style={{ flex: 1, padding: "10px 2px 12px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+              <span style={{ fontSize: 20 }}>{n.icon}</span>
+              <span style={{ fontSize: 9, fontFamily: "inherit", fontWeight: 700, color: tab === n.id ? C.accent : C.textLight }}>{n.label}</span>
+              {tab === n.id && <div style={{ width: 16, height: 3, borderRadius: 99, background: C.accent }} />}
+            </button>
+          ))}
+        </div>
+        {renderModales()}
+      </div>
     </>
   );
 }
