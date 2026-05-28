@@ -325,7 +325,7 @@ function TabInicio({transacciones,billeteras,balances,setBalances,userId,histori
   const txF=filtrar(transacciones);
   const ingresos=txF.filter(t=>t.tipo==="ingreso").reduce((a,b)=>a+b.monto,0);
   const gastos=txF.filter(t=>t.tipo==="gasto").reduce((a,b)=>a+b.monto,0);
-  const totalBill=billeteras.reduce((a,b)=>a+(b.saldo||0),0);
+  const totalBill=billeteras.reduce((a,b)=>a+(parseFloat(b.saldo)||0),0);
 
   // Calcular aportes de espacios compartidos (ahorros suman, sueldos pagados restan)
   const aportesCompartidos=espacios.reduce((total,esp)=>{
@@ -335,7 +335,7 @@ function TabInicio({transacciones,billeteras,balances,setBalances,userId,histori
     return total+sum;
   },0);
 
-  const patrimonio=totalBill+(balances.inversiones||0)-(balances.deudas||0);
+  const patrimonio=totalBill+(parseFloat(balances.inversiones)||0)-(parseFloat(balances.deudas)||0);
   const objPct=balances.objetivo>0?Math.min(Math.round((totalBill/balances.objetivo)*100),100):0;
   const ahorro=ingresos-gastos;
   const ahorroPct=ingresos>0?Math.round((ahorro/ingresos)*100):0;
@@ -382,7 +382,12 @@ function TabInicio({transacciones,billeteras,balances,setBalances,userId,histori
         </div>
       </Card>
 
-      {billeteras.length>0&&(
+      {billeteras.length===0?(
+        <Card style={{padding:16,background:C.goldLight,border:`1.5px solid ${C.gold}30`}}>
+          <p style={{fontSize:14,fontWeight:600,color:C.gold}}>👛 No tenés billeteras cargadas</p>
+          <p style={{fontSize:13,color:C.textMid,marginTop:4}}>Andá a <b>Más → Billeteras</b> y agregá tus cuentas para ver el patrimonio real.</p>
+        </Card>
+      ):(
         <>
           <p style={{fontWeight:700,fontSize:16}}>💰 Mis billeteras</p>
           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:10}}>
@@ -737,7 +742,7 @@ function TabMetas({userId,transacciones,billeteras,balances,isMobile}){
             {form.tipo==="deuda"&&<input type="number" value={form.cuota_mensual||""} onChange={e=>setForm({...form,cuota_mensual:e.target.value})} placeholder="Cuota mensual ($)" style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%"}}/>}
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               <p style={{color:C.textMid,fontSize:12}}>📅 {form.tipo==="deuda"?"Fecha de vencimiento":"Fecha objetivo"} (opcional)</p>
-              <input type="date" value={form.fecha_limite} onChange={e=>setForm({...form,fecha_limite:e.target.value})} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center"}}/>
+              <input type="date" value={form.fecha_limite} onChange={e=>setForm({...form,fecha_limite:e.target.value})} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
             </div>
             <div>
               <p style={{color:C.textMid,fontSize:12,marginBottom:6}}>Ícono</p>
@@ -865,7 +870,7 @@ function TabServicios({userId,isMobile}){
             <input type="number" value={form.monto||""} onChange={e=>setForm({...form,monto:e.target.value})} placeholder="Monto mensual ($)" style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%"}}/>
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               <p style={{color:C.textMid,fontSize:12}}>Día del mes que vence:</p>
-              <input type="number" min="1" max="31" value={form.dia_pago} onChange={e=>setForm({...form,dia_pago:e.target.value})} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center"}}/>
+              <input type="number" min="1" max="31" value={form.dia_pago} onChange={e=>setForm({...form,dia_pago:e.target.value})} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               <p style={{color:C.textMid,fontSize:12,fontWeight:600}}>🤝 ¿Compartís este gasto? (opcional)</p>
@@ -970,7 +975,7 @@ function TabBilleteras({billeteras,setBilleteras,userId}){
             <input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Nombre" style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%"}}/>
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               <p style={{color:C.textMid,fontSize:12}}>Saldo actual ($):</p>
-              <input type="number" value={form.saldo||""} onChange={e=>setForm({...form,saldo:e.target.value})} placeholder="0" style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center"}}/>
+              <input type="number" value={form.saldo||""} onChange={e=>setForm({...form,saldo:e.target.value})} placeholder="0" style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
             </div>
             <BtnPrimary onClick={crearOEditar}>{editBill?"Guardar cambios":"Crear billetera"}</BtnPrimary>
           </div>
@@ -1147,7 +1152,7 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                   <input type="number" value={monto} onChange={e=>setMonto(e.target.value)} placeholder="Monto ($)" style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%"}}/>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
                     <p style={{color:C.textMid,fontSize:12}}>📅 Fecha:</p>
-                    <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center"}}/>
+                    <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
                   </div>
                   <BtnPrimary onClick={agregar}>Guardar</BtnPrimary>
                 </div>
@@ -1525,6 +1530,7 @@ export default function App(){
 
   const agregarTx=async()=>{
     if(!newTx.descripcion.trim()||!newTx.monto)return;
+    if(billeteras.length>0&&!newTx.billetera_id){alert("Seleccioná de qué billetera es este movimiento");return;}
     const monto=parseFloat(newTx.monto);
     const{data}=await supabase.from("transacciones").insert({
       user_id:session.user.id,descripcion:newTx.descripcion,monto,tipo:newTx.tipo,cat:newTx.cat,
@@ -1590,6 +1596,8 @@ export default function App(){
     select{font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;padding:12px 14px;border:2px solid ${C.border};border-radius:14px;background:${C.white};color:${C.text};width:100%;outline:none;transition:border-color 0.2s;}
     select:focus{border-color:${C.accent};}
     select option{background:${C.white};}
+    input[type="date"]{background:${C.white}!important;color:${C.text}!important;text-align:center;-webkit-appearance:none;appearance:none;}
+    input[type="date"]::-webkit-calendar-picker-indicator{opacity:0.6;cursor:pointer;}
   `;
 
   const userNombre=balances.nombre_usuario||session?.user?.user_metadata?.nombre||session?.user?.email?.split("@")[0]||"Vos";
@@ -1633,19 +1641,29 @@ export default function App(){
             )}
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               <p style={{color:C.textMid,fontSize:12}}>📅 Fecha:</p>
-              <input type="date" value={newTx.fecha} onChange={e=>setNewTx({...newTx,fecha:e.target.value})} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center"}}/>
+              <input type="date" value={newTx.fecha} onChange={e=>setNewTx({...newTx,fecha:e.target.value})} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
             </div>
-            {billeteras.length>0&&(
-              <div>
-                <p style={{color:C.textMid,fontSize:12,marginBottom:6}}>👛 Billetera (opcional):</p>
-                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                  <button onClick={()=>setNewTx({...newTx,billetera_id:""})} style={{padding:"7px 12px",borderRadius:10,border:`2px solid ${!newTx.billetera_id?C.accent:C.border}`,background:!newTx.billetera_id?C.accentLight:C.white,color:!newTx.billetera_id?C.accent:C.textMid,fontFamily:"inherit",fontWeight:600,fontSize:12,cursor:"pointer"}}>Sin asignar</button>
+            <div>
+              <p style={{color:C.text,fontSize:14,fontWeight:700,marginBottom:8}}>
+                👛 {newTx.tipo==="ingreso"?"¿A qué billetera entra la plata?":"¿De qué billetera sale la plata?"}
+              </p>
+              {billeteras.length===0?(
+                <div style={{padding:12,borderRadius:12,background:C.goldLight,border:`1px solid ${C.gold}30`}}>
+                  <p style={{fontSize:13,color:C.gold,fontWeight:600}}>⚠️ Primero creá una billetera en Más → Billeteras</p>
+                </div>
+              ):(
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                   {billeteras.map(b=>(
-                    <button key={b.id} onClick={()=>setNewTx({...newTx,billetera_id:b.id})} style={{padding:"7px 12px",borderRadius:10,border:`2px solid ${newTx.billetera_id===b.id?C.accent:C.border}`,background:newTx.billetera_id===b.id?C.accentLight:C.white,color:newTx.billetera_id===b.id?C.accent:C.textMid,fontFamily:"inherit",fontWeight:600,fontSize:12,cursor:"pointer"}}>{b.icono} {b.nombre}</button>
+                    <button key={b.id} onClick={()=>setNewTx({...newTx,billetera_id:b.id})}
+                      style={{padding:"10px 16px",borderRadius:14,border:`2px solid ${newTx.billetera_id===b.id?C.accent:C.border}`,background:newTx.billetera_id===b.id?C.accentLight:C.white,color:newTx.billetera_id===b.id?C.accent:C.textMid,fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:8,transition:"all 0.15s",boxShadow:newTx.billetera_id===b.id?`0 0 0 3px ${C.accent}20`:"none"}}>
+                      <span style={{fontSize:20}}>{b.icono}</span>
+                      <span>{b.nombre}</span>
+                      {newTx.billetera_id===b.id&&<span style={{fontSize:14,color:C.accent}}>✓</span>}
+                    </button>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             <label style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:C.textMid,cursor:"pointer"}}>
               <input type="checkbox" checked={newTx.recurrente} onChange={e=>setNewTx({...newTx,recurrente:e.target.checked})} style={{width:"auto",accentColor:C.accent}}/>
               🔄 Se repite todos los meses
