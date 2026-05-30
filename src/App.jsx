@@ -1022,7 +1022,7 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   useEffect(()=>{cargarTodo();},[cargarTodo]);
 
   const agregar=async()=>{
-    if(!desc.trim()||!monto||!puedeEditar)return;
+    if(!desc.trim()||!monto)return;
     const userMeta=await supabase.auth.getUser();
     const nombreU=userMeta.data?.user?.user_metadata?.nombre||userMeta.data?.user?.email?.split("@")[0]||"Vos";
     const montoN=parseFloat(monto);
@@ -1214,8 +1214,8 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
               </div>
             </Card>
 
-            {/* Config billetera de cobro (solo para receptor de sueldo) */}
-            {espacio.tipo==="sueldo"&&!puedeEditar&&(
+            {/* Config billetera de cobro (para receptor de sueldo = no creador) */}
+            {espacio.tipo==="sueldo"&&!esCreador&&(
               <Card style={{border:`1.5px solid ${C.gold}30`,background:C.goldLight}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <p style={{fontWeight:700,fontSize:14,color:C.gold}}>💳 Billetera de cobro</p>
@@ -1264,7 +1264,7 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
             )}
 
             {/* Formulario agregar (solo creador en sueldo) */}
-            {puedeEditar&&(
+            {esCreador&&(
               <Card>
                 <p style={{fontWeight:700,fontSize:15,marginBottom:12}}>{espacio.tipo==="sueldo"?"💼 Registrar pago":"💰 Agregar aporte"}</p>
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -1288,7 +1288,7 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
               </Card>
             )}
 
-            {!puedeEditar&&espacio.tipo!=="sueldo"&&(
+            {!esCreador&&espacio.tipo!=="sueldo"&&(
               <Card style={{background:C.goldLight,border:`1.5px solid ${C.gold}30`}}>
                 <p style={{fontWeight:600,fontSize:14,color:C.gold}}>👁️ Solo lectura</p>
                 <p style={{color:C.textMid,fontSize:13,marginTop:6}}>Podés ver los movimientos pero no editarlos.</p>
