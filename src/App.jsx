@@ -989,6 +989,7 @@ function TabBilleteras({billeteras,setBilleteras,userId}){
 function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   const[movimientos,setMovimientos]=useState([]);
   const[miembros,setMiembros]=useState([]);
+  const[miMiembro,setMiMiembro]=useState(null);
   const[loading,setLoading]=useState(true);
   const[desc,setDesc]=useState("");
   const[monto,setMonto]=useState("");
@@ -1000,6 +1001,9 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   const[editEspacio,setEditEspacio]=useState(false);
   const[editNombre,setEditNombre]=useState(espacio.nombre);
   const[editObj,setEditObj]=useState(espacio.objetivo||0);
+  const[configBilletera,setConfigBilletera]=useState(false);
+  const[billeteraDestNombre,setBilleteraDestNombre]=useState("");
+  const[billeteraDestIcono,setBilleteraDestIcono]=useState("💳");
 
   const cargarTodo=useCallback(async()=>{
     setLoading(true);
@@ -1007,8 +1011,13 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
       supabase.from("espacio_movimientos").select("*").eq("espacio_id",espacio.id).order("fecha",{ascending:false}),
       supabase.from("espacio_miembros").select("*").eq("espacio_id",espacio.id),
     ]);
-    setMovimientos(movs||[]);setMiembros(miemb||[]);setLoading(false);
-  },[espacio.id]);
+    setMovimientos(movs||[]);
+    setMiembros(miemb||[]);
+    const yo=(miemb||[]).find(m=>m.user_id===userId);
+    setMiMiembro(yo||null);
+    if(yo?.billetera_destino_nombre){setBilleteraDestNombre(yo.billetera_destino_nombre);setBilleteraDestIcono(yo.billetera_destino_icono||"💳");}
+    setLoading(false);
+  },[espacio.id,userId]);
 
   useEffect(()=>{cargarTodo();},[cargarTodo]);
 
@@ -1016,8 +1025,54 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
     if(!desc.trim()||!monto||!puedeEditar)return;
     const userMeta=await supabase.auth.getUser();
     const nombreU=userMeta.data?.user?.user_metadata?.nombre||userMeta.data?.user?.email?.split("@")[0]||"Vos";
-    await supabase.from("espacio_movimientos").insert({espacio_id:espacio.id,user_id:userId,descripcion:desc,monto:parseFloat(monto),tipo:"aporte",fecha,nombre_usuario:nombreU});
-    setDesc("");setMonto("");setFecha(hoy());cargarTodo();
+    const montoN=parseFloat(monto);
+    await supabase.from("espacio_movimientos").insert({
+      espacio_id:espacio.id,user_id:userId,descripcion:desc,
+      monto:montoN,tipo:"aporte",fecha,nombre_usuario:nombreU,es_ingreso_receptor:false,
+    });
+
+    // Si es sueldo, notificar al receptor para que actualice su billetera
+    if(espacio.tipo==="sueldo"){
+      // Buscar el miembro receptor (no creador)
+      const receptor=miembros.find(m=>m.user_id!==userId&&m.rol==="miembro");
+      if(receptor){
+        // Crear notificación para el receptor
+        await supabase.from("notificaciones").insert({
+          user_id:receptor.user_id,
+          titulo:"💼 Nuevo pago de sueldo",
+          mensaje:`Recibiste ${fmt(montoN)} - "${desc}". ${receptor.billetera_destino_nombre?`Se agregó a tu ${receptor.billetera_destino_icono||"💳"} ${receptor.billetera_destino_nombre}`:"Configurá tu billetera de cobro en el espacio compartido."}`,
+        });
+        // Si el receptor tiene billetera configurada, actualizar su saldo
+        if(receptor.billetera_destino_nombre){
+          const{data:bills}=await supabase.from("billeteras").select("*")
+            .eq("user_id",receptor.user_id)
+            .ilike("nombre",receptor.billetera_destino_nombre);
+          if(bills&&bills.length>0){
+            const bw=bills[0];
+            await supabase.from("billeteras").update({saldo:bw.saldo+montoN}).eq("id",bw.id);
+            // También crear transacción de ingreso en la cuenta del receptor
+            await supabase.from("transacciones").insert({
+              user_id:receptor.user_id,descripcion:desc,monto:montoN,
+              tipo:"ingreso",cat:"trabajo",recurrente:false,
+              fecha,fecha_custom:fecha,billetera_id:bw.id,
+            });
+          }
+        }
+      }
+    }
+
+    setDesc("");setMonto("");setFecha(hoy());
+    cargarTodo();
+    if(onUpdate)onUpdate();
+  };
+
+  const guardarBilleteraDestino=async()=>{
+    if(!billeteraDestNombre.trim())return;
+    await supabase.from("espacio_miembros")
+      .update({billetera_destino_nombre:billeteraDestNombre,billetera_destino_icono:billeteraDestIcono})
+      .eq("espacio_id",espacio.id).eq("user_id",userId);
+    setMiMiembro(prev=>({...prev,billetera_destino_nombre:billeteraDestNombre,billetera_destino_icono:billeteraDestIcono}));
+    setConfigBilletera(false);
     if(onUpdate)onUpdate();
   };
 
@@ -1042,7 +1097,7 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   };
 
   const eliminarEspacio=async()=>{
-    if(!window.confirm("¿Eliminás este espacio compartido? Se eliminarán todos los movimientos."))return;
+    if(!window.confirm("¿Eliminás este espacio? Se eliminarán todos los movimientos."))return;
     await supabase.from("espacio_movimientos").delete().eq("espacio_id",espacio.id);
     await supabase.from("espacio_miembros").delete().eq("espacio_id",espacio.id);
     await supabase.from("espacios").delete().eq("id",espacio.id);
@@ -1074,17 +1129,30 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   const otroTotal=total-miTotal;
   const objPct=espacio.objetivo>0?Math.min(Math.round((movimientos.reduce((a,b)=>a+b.monto,0)/espacio.objetivo)*100),100):0;
   const mesActual=new Date().toISOString().slice(0,7);
-  const totalMes=movimientos.filter(m=>m.fecha?.slice(0,7)===mesActual).reduce((a,b)=>a+b.monto,0);
+  const movsMes=movimientos.filter(m=>m.fecha?.slice(0,7)===mesActual);
+  const totalMes=movsMes.reduce((a,b)=>a+b.monto,0);
   const esCreador=espacio.creado_por===userId;
+
+  // Promedio diario del mes
+  const diasDelMes=new Date().getDate();
+  const promedioDiario=diasDelMes>0?Math.round(totalMes/diasDelMes):0;
+
+  // Para sueldo: totales por dia en el mes
+  const pagosPorDia={};
+  movsMes.forEach(m=>{
+    const d=m.fecha;
+    pagosPorDia[d]=(pagosPorDia[d]||0)+m.monto;
+  });
 
   return(
     <div style={{position:"fixed",inset:0,background:C.bg,zIndex:300,overflowY:"auto"}}>
       <div style={{maxWidth:isMobile?"100%":900,margin:"0 auto",paddingBottom:40}}>
+        {/* Header */}
         <div style={{background:C.white,borderBottom:`2px solid ${C.border}`,padding:"16px 20px",position:"sticky",top:0,zIndex:10,display:"flex",alignItems:"center",gap:14}}>
           <button onClick={onClose} style={{width:38,height:38,minWidth:38,borderRadius:12,background:C.bg,border:"none",cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
           <div style={{flex:1,minWidth:0}}>
             {editEspacio?(
-              <input value={editNombre} onChange={e=>setEditNombre(e.target.value)} style={{fontFamily:"inherit",fontSize:16,fontWeight:800,border:`2px solid ${C.accent}`,borderRadius:10,padding:"4px 10px",outline:"none",width:"100%"}}/>
+              <input value={editNombre} onChange={e=>setEditNombre(e.target.value)} style={{fontFamily:"inherit",fontSize:16,fontWeight:800,border:`2px solid ${C.accent}`,borderRadius:10,padding:"4px 10px",outline:"none",width:"100%",background:C.white,color:C.text}}/>
             ):(
               <p style={{fontWeight:800,fontSize:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{espacio.nombre}</p>
             )}
@@ -1097,7 +1165,7 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                 <button onClick={()=>setEditEspacio(false)} style={{padding:"8px 12px",borderRadius:10,border:`2px solid ${C.border}`,background:C.white,color:C.textMid,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
               </>
             ):(
-              <button onClick={()=>setEditEspacio(true)} style={{padding:"8px 12px",borderRadius:10,border:`2px solid ${C.accent}`,background:C.accentLight,color:C.accent,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>✏️ Editar</button>
+              <button onClick={()=>setEditEspacio(true)} style={{padding:"8px 12px",borderRadius:10,border:`2px solid ${C.accent}`,background:C.accentLight,color:C.accent,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>✏️</button>
             ))}
             <button onClick={copiarCodigo}
               style={{padding:"9px 12px",borderRadius:12,border:`2px solid ${copiado?C.green:C.accent}`,background:copiado?C.greenLight:C.accentLight,color:copiado?C.green:C.accent,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>
@@ -1107,7 +1175,10 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
         </div>
 
         <div style={{padding:"16px 20px",display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
+          {/* Columna izquierda */}
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+            {/* Tarjeta resumen */}
             <Card style={{background:`linear-gradient(135deg,${espacio.tipo==="sueldo"?C.gold:C.accent},${espacio.tipo==="sueldo"?"#b45309":"#1250c0"})`,border:"none"}}>
               <p style={{color:"#ffffffaa",fontSize:11,fontWeight:600,marginBottom:6}}>{espacio.tipo==="sueldo"?"TOTAL PAGADO":"TOTAL ACUMULADO"}</p>
               <p style={{color:"#fff",fontSize:36,fontWeight:800}}>{fmt(total)}</p>
@@ -1123,49 +1194,115 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                   <input type="number" value={editObj} onChange={e=>setEditObj(e.target.value)} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:"1px solid #ffffff40",borderRadius:10,background:"#ffffff20",color:"#fff",width:"100%",outline:"none"}}/>
                 </div>
               )}
-              <div style={{display:"flex",gap:24,marginTop:14,borderTop:"1px solid #ffffff30",paddingTop:12}}>
-                <div><p style={{color:"#ffffffaa",fontSize:11}}>Mi {espacio.tipo==="sueldo"?"pago":"aporte"}</p><p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(miTotal)}</p></div>
-                <div><p style={{color:"#ffffffaa",fontSize:11}}>{espacio.tipo==="sueldo"?"Este mes":"Otro"}</p><p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?totalMes:otroTotal)}</p></div>
+              <div style={{display:"flex",gap:0,marginTop:14,borderTop:"1px solid #ffffff30",paddingTop:12}}>
+                <div style={{flex:1}}>
+                  <p style={{color:"#ffffffaa",fontSize:11}}>{espacio.tipo==="sueldo"?"Este mes":"Mi aporte"}</p>
+                  <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?totalMes:miTotal)}</p>
+                </div>
+                {espacio.tipo==="sueldo"&&(
+                  <div style={{flex:1}}>
+                    <p style={{color:"#ffffffaa",fontSize:11}}>Promedio diario</p>
+                    <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(promedioDiario)}/día</p>
+                  </div>
+                )}
+                {espacio.tipo!=="sueldo"&&(
+                  <div style={{flex:1}}>
+                    <p style={{color:"#ffffffaa",fontSize:11}}>Otro aporte</p>
+                    <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(otroTotal)}</p>
+                  </div>
+                )}
               </div>
             </Card>
 
+            {/* Config billetera de cobro (solo para receptor de sueldo) */}
+            {espacio.tipo==="sueldo"&&!puedeEditar&&(
+              <Card style={{border:`1.5px solid ${C.gold}30`,background:C.goldLight}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <p style={{fontWeight:700,fontSize:14,color:C.gold}}>💳 Billetera de cobro</p>
+                  <button onClick={()=>setConfigBilletera(!configBilletera)}
+                    style={{padding:"6px 12px",borderRadius:10,border:`2px solid ${C.gold}`,background:C.white,color:C.gold,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                    {configBilletera?"✕ Cerrar":"⚙️ Configurar"}
+                  </button>
+                </div>
+                {miMiembro?.billetera_destino_nombre?(
+                  <p style={{fontSize:13,color:C.textMid}}>Tus pagos van a: <b style={{color:C.gold}}>{miMiembro.billetera_destino_icono} {miMiembro.billetera_destino_nombre}</b></p>
+                ):(
+                  <p style={{fontSize:13,color:C.textMid}}>⚠️ Configurá dónde querés recibir tus pagos. Cuando el empleador registre un pago, se te sumará automáticamente.</p>
+                )}
+                {configBilletera&&(
+                  <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      {["💳","💵","🏦","🟣","🔵","🟠","💜","🟢"].map(e=>(
+                        <button key={e} onClick={()=>setBilleteraDestIcono(e)} style={{width:36,height:36,borderRadius:10,border:`2px solid ${billeteraDestIcono===e?C.gold:C.border}`,background:billeteraDestIcono===e?C.goldLight:C.white,fontSize:18,cursor:"pointer"}}>{e}</button>
+                      ))}
+                    </div>
+                    <input value={billeteraDestNombre} onChange={e=>setBilleteraDestNombre(e.target.value)} placeholder="Nombre de tu billetera (ej: Mercado Pago)" style={{fontFamily:"inherit",fontSize:14,padding:"10px 12px",border:`2px solid ${C.border}`,borderRadius:12,outline:"none",width:"100%",background:C.white,color:C.text}}/>
+                    <button onClick={guardarBilleteraDestino} style={{padding:"10px",borderRadius:12,border:"none",background:C.gold,color:"#fff",fontFamily:"inherit",fontWeight:700,fontSize:14,cursor:"pointer"}}>Guardar billetera de cobro</button>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* Participantes */}
             {miembros.length>0&&(
               <Card>
                 <p style={{fontWeight:700,fontSize:14,marginBottom:12}}>👥 Participantes</p>
                 {miembros.map((m,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                    <div style={{width:32,height:32,borderRadius:"50%",background:m.user_id===userId?C.accentLight:C.goldLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{m.user_id===userId?"👤":"👥"}</div>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                    <div style={{width:36,height:36,borderRadius:"50%",background:m.user_id===userId?C.accentLight:C.goldLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
+                      {m.user_id===userId?"👤":"👥"}
+                    </div>
                     <div style={{flex:1}}>
                       <p style={{fontWeight:600,fontSize:13}}>{m.user_id===userId?"Vos":(m.nombre_usuario||"Participante")}</p>
-                      <p style={{color:C.textMid,fontSize:11}}>{m.rol} · {m.puede_editar!==false?"Puede editar":"Solo lectura"}</p>
+                      <p style={{color:C.textMid,fontSize:11}}>{m.rol==="creador"?espacio.tipo==="sueldo"?"Empleador":"Creador":"Miembro"} · {m.puede_editar!==false?"Puede editar":"Solo lectura"}</p>
+                      {m.billetera_destino_nombre&&<p style={{color:C.gold,fontSize:11,marginTop:2}}>{m.billetera_destino_icono} Cobro en: {m.billetera_destino_nombre}</p>}
                     </div>
+                    {m.user_id===userId&&<span style={{fontSize:10,color:C.accent,fontWeight:700,background:C.accentLight,padding:"2px 8px",borderRadius:20}}>Vos</span>}
                   </div>
                 ))}
               </Card>
             )}
 
+            {/* Formulario agregar (solo creador en sueldo) */}
             {puedeEditar&&(
               <Card>
                 <p style={{fontWeight:700,fontSize:15,marginBottom:12}}>{espacio.tipo==="sueldo"?"💼 Registrar pago":"💰 Agregar aporte"}</p>
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder={espacio.tipo==="sueldo"?"Ej: Pago semanal...":"Ej: Aporte mayo..."} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%"}}/>
-                  <input type="number" value={monto} onChange={e=>setMonto(e.target.value)} placeholder="Monto ($)" style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%"}}/>
+                  <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder={espacio.tipo==="sueldo"?"Ej: Pago semanal, Adelanto...":"Ej: Aporte mayo..."} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",background:C.white,color:C.text}}/>
+                  <input type="number" value={monto} onChange={e=>setMonto(e.target.value)} placeholder="Monto ($)" style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",background:C.white,color:C.text}}/>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
                     <p style={{color:C.textMid,fontSize:12}}>📅 Fecha:</p>
                     <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
                   </div>
-                  <BtnPrimary onClick={agregar}>Guardar</BtnPrimary>
+                  {espacio.tipo==="sueldo"&&(
+                    <div style={{padding:10,borderRadius:12,background:C.goldLight,border:`1px solid ${C.gold}30`}}>
+                      <p style={{fontSize:12,color:C.textMid}}>
+                        {miembros.find(m=>m.user_id!==userId&&m.billetera_destino_nombre)
+                          ?`✅ Al guardar, se sumará automáticamente a ${miembros.find(m=>m.user_id!==userId).billetera_destino_icono||"💳"} ${miembros.find(m=>m.user_id!==userId).billetera_destino_nombre} del receptor.`
+                          :"⚠️ El receptor aún no configuró su billetera de cobro. Se le notificará igual."}
+                      </p>
+                    </div>
+                  )}
+                  <BtnPrimary onClick={agregar}>{espacio.tipo==="sueldo"?"Registrar pago 💼":"Guardar aporte 💰"}</BtnPrimary>
                 </div>
               </Card>
             )}
-            {!puedeEditar&&<Card style={{background:C.goldLight,border:`1.5px solid ${C.gold}30`}}><p style={{fontWeight:600,fontSize:14,color:C.gold}}>👁️ Solo lectura</p><p style={{color:C.textMid,fontSize:13,marginTop:6}}>Podés ver los movimientos pero no editarlos.</p></Card>}
 
+            {!puedeEditar&&espacio.tipo!=="sueldo"&&(
+              <Card style={{background:C.goldLight,border:`1.5px solid ${C.gold}30`}}>
+                <p style={{fontWeight:600,fontSize:14,color:C.gold}}>👁️ Solo lectura</p>
+                <p style={{color:C.textMid,fontSize:13,marginTop:6}}>Podés ver los movimientos pero no editarlos.</p>
+              </Card>
+            )}
+
+            {/* Botones salir/eliminar */}
             <div style={{display:"flex",gap:8}}>
               {!esCreador&&<button onClick={salirEspacio} style={{flex:1,padding:"12px",borderRadius:14,border:`2px solid ${C.gold}30`,background:C.goldLight,color:C.gold,fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer"}}>🚪 Salir del espacio</button>}
               {esCreador&&<button onClick={eliminarEspacio} style={{flex:1,padding:"12px",borderRadius:14,border:`2px solid ${C.red}30`,background:C.redLight,color:C.red,fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer"}}>🗑️ Eliminar espacio</button>}
             </div>
           </div>
 
+          {/* Columna derecha - historial */}
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <p style={{fontWeight:700,fontSize:16}}>Historial</p>
@@ -1178,15 +1315,35 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                 ))}
               </div>
             </div>
+
+            {/* Resumen por día (sueldo) */}
+            {espacio.tipo==="sueldo"&&Object.keys(pagosPorDia).length>0&&(
+              <Card style={{padding:14}}>
+                <p style={{fontWeight:700,fontSize:13,marginBottom:10,color:C.gold}}>📅 Pagos del mes por día</p>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {Object.entries(pagosPorDia).sort().map(([d,v])=>(
+                    <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",borderRadius:10,background:C.bg}}>
+                      <p style={{fontSize:12,color:C.textMid}}>{new Date(d+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"})}</p>
+                      <p style={{fontSize:13,fontWeight:700,color:C.gold}}>+{fmt(v)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between"}}>
+                  <p style={{fontSize:12,color:C.textMid}}>Promedio/día este mes:</p>
+                  <p style={{fontSize:13,fontWeight:700,color:C.gold}}>{fmt(promedioDiario)}</p>
+                </div>
+              </Card>
+            )}
+
             {loading?<p style={{color:C.textMid,textAlign:"center",padding:20}}>Cargando...</p>:
               movF.length===0?<Card style={{textAlign:"center",padding:30}}><p style={{color:C.textMid}}>Sin movimientos en este período</p></Card>:
               movF.map(m=>(
                 <Card key={m.id} style={{padding:"12px 14px",animation:"fadeUp 0.2s ease"}}>
                   {editMov===m.id?(
                     <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      <input value={editMovData.descripcion||""} onChange={e=>setEditMovData({...editMovData,descripcion:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%"}}/>
-                      <input type="number" value={editMovData.monto||""} onChange={e=>setEditMovData({...editMovData,monto:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%"}}/>
-                      <input type="date" value={editMovData.fecha||""} onChange={e=>setEditMovData({...editMovData,fecha:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",textAlign:"center"}}/>
+                      <input value={editMovData.descripcion||""} onChange={e=>setEditMovData({...editMovData,descripcion:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",background:C.white,color:C.text}}/>
+                      <input type="number" value={editMovData.monto||""} onChange={e=>setEditMovData({...editMovData,monto:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",background:C.white,color:C.text}}/>
+                      <input type="date" value={editMovData.fecha||""} onChange={e=>setEditMovData({...editMovData,fecha:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
                       <div style={{display:"flex",gap:8}}>
                         <button onClick={()=>setEditMov(null)} style={{flex:1,padding:"8px",borderRadius:10,border:`2px solid ${C.border}`,background:C.white,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",color:C.textMid}}>Cancelar</button>
                         <button onClick={guardarEditMov} style={{flex:2,padding:"8px",borderRadius:10,border:"none",background:C.accent,color:"#fff",fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>Guardar</button>
@@ -1194,10 +1351,15 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                     </div>
                   ):(
                     <div style={{display:"flex",alignItems:"center",gap:12}}>
-                      <div style={{width:38,height:38,borderRadius:10,background:m.user_id===userId?C.accentLight:C.goldLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{m.user_id===userId?"👤":"👥"}</div>
+                      <div style={{width:38,height:38,borderRadius:10,background:m.user_id===userId?C.accentLight:C.goldLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                        {m.user_id===userId?"👤":"👥"}
+                      </div>
                       <div style={{flex:1,minWidth:0}}>
                         <p style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.descripcion}</p>
-                        <p style={{color:C.textLight,fontSize:11,marginTop:2}}>{m.fecha} · {m.user_id===userId?"Vos":(m.nombre_usuario||"Otro")}</p>
+                        <p style={{color:C.textLight,fontSize:11,marginTop:2}}>
+                          {new Date(m.fecha+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"})}
+                          {" · "}{m.user_id===userId?"Vos":(m.nombre_usuario||"Otro")}
+                        </p>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
                         <p style={{fontWeight:800,fontSize:14,color:C.green}}>+{fmt(m.monto)}</p>
@@ -1219,7 +1381,6 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
     </div>
   );
 }
-
 // ─── TAB COMPARTIDO ───────────────────────────────────────────────────────────
 function TabCompartido({userId,isMobile}){
   const[espacios,setEspacios]=useState([]);
