@@ -1002,8 +1002,10 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   const[editNombre,setEditNombre]=useState(espacio.nombre);
   const[editObj,setEditObj]=useState(espacio.objetivo||0);
   const[configBilletera,setConfigBilletera]=useState(false);
+  const[billeteraDestId,setBilleteraDestId]=useState("");
   const[billeteraDestNombre,setBilleteraDestNombre]=useState("");
   const[billeteraDestIcono,setBilleteraDestIcono]=useState("💳");
+  const[billeterasReceptor,setBilleterasReceptor]=useState([]);
 
   const cargarTodo=useCallback(async()=>{
     setLoading(true);
@@ -1015,7 +1017,14 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
     setMiembros(miemb||[]);
     const yo=(miemb||[]).find(m=>m.user_id===userId);
     setMiMiembro(yo||null);
-    if(yo?.billetera_destino_nombre){setBilleteraDestNombre(yo.billetera_destino_nombre);setBilleteraDestIcono(yo.billetera_destino_icono||"💳");}
+    if(yo?.billetera_destino_nombre){
+      setBilleteraDestNombre(yo.billetera_destino_nombre);
+      setBilleteraDestIcono(yo.billetera_destino_icono||"💳");
+      setBilleteraDestId(yo.billetera_destino_id||"");
+    }
+    // Cargar billeteras del usuario actual (para el receptor)
+    const{data:myBills}=await supabase.from("billeteras").select("*").eq("user_id",userId).order("created_at");
+    setBilleterasReceptor(myBills||[]);
     setLoading(false);
   },[espacio.id,userId]);
 
@@ -1042,19 +1051,24 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
           titulo:"💼 Nuevo pago de sueldo",
           mensaje:`Recibiste ${fmt(montoN)} - "${desc}". ${receptor.billetera_destino_nombre?`Se agregó a tu ${receptor.billetera_destino_icono||"💳"} ${receptor.billetera_destino_nombre}`:"Configurá tu billetera de cobro en el espacio compartido."}`,
         });
-        // Si el receptor tiene billetera configurada, actualizar su saldo
-        if(receptor.billetera_destino_nombre){
-          const{data:bills}=await supabase.from("billeteras").select("*")
-            .eq("user_id",receptor.user_id)
-            .ilike("nombre",receptor.billetera_destino_nombre);
-          if(bills&&bills.length>0){
-            const bw=bills[0];
-            await supabase.from("billeteras").update({saldo:bw.saldo+montoN}).eq("id",bw.id);
-            // También crear transacción de ingreso en la cuenta del receptor
+        // Si el receptor tiene billetera configurada, actualizar su saldo por ID
+        const billId=receptor.billetera_destino_id||null;
+        if(billId){
+          const{data:bwData}=await supabase.from("billeteras").select("*").eq("id",billId).single();
+          if(bwData){
+            // Sumar al saldo de la billetera del receptor
+            await supabase.from("billeteras").update({saldo:bwData.saldo+montoN}).eq("id",billId);
+            // Crear transacción de ingreso en la cuenta del receptor
             await supabase.from("transacciones").insert({
-              user_id:receptor.user_id,descripcion:desc,monto:montoN,
-              tipo:"ingreso",cat:"trabajo",recurrente:false,
-              fecha,fecha_custom:fecha,billetera_id:bw.id,
+              user_id:receptor.user_id,
+              descripcion:`Sueldo: ${desc}`,
+              monto:montoN,
+              tipo:"ingreso",
+              cat:"trabajo",
+              recurrente:false,
+              fecha,
+              fecha_custom:fecha,
+              billetera_id:billId,
             });
           }
         }
@@ -1067,11 +1081,19 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   };
 
   const guardarBilleteraDestino=async()=>{
-    if(!billeteraDestNombre.trim())return;
+    if(!billeteraDestId)return;
+    const bw=billeterasReceptor.find(b=>b.id===billeteraDestId);
+    if(!bw)return;
     await supabase.from("espacio_miembros")
-      .update({billetera_destino_nombre:billeteraDestNombre,billetera_destino_icono:billeteraDestIcono})
+      .update({
+        billetera_destino_nombre:bw.nombre,
+        billetera_destino_icono:bw.icono,
+        billetera_destino_id:bw.id,
+      })
       .eq("espacio_id",espacio.id).eq("user_id",userId);
-    setMiMiembro(prev=>({...prev,billetera_destino_nombre:billeteraDestNombre,billetera_destino_icono:billeteraDestIcono}));
+    setBilleteraDestNombre(bw.nombre);
+    setBilleteraDestIcono(bw.icono);
+    setMiMiembro(prev=>({...prev,billetera_destino_nombre:bw.nombre,billetera_destino_icono:bw.icono,billetera_destino_id:bw.id}));
     setConfigBilletera(false);
     if(onUpdate)onUpdate();
   };
@@ -1231,13 +1253,32 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                 )}
                 {configBilletera&&(
                   <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {["💳","💵","🏦","🟣","🔵","🟠","💜","🟢"].map(e=>(
-                        <button key={e} onClick={()=>setBilleteraDestIcono(e)} style={{width:36,height:36,borderRadius:10,border:`2px solid ${billeteraDestIcono===e?C.gold:C.border}`,background:billeteraDestIcono===e?C.goldLight:C.white,fontSize:18,cursor:"pointer"}}>{e}</button>
-                      ))}
-                    </div>
-                    <input value={billeteraDestNombre} onChange={e=>setBilleteraDestNombre(e.target.value)} placeholder="Nombre de tu billetera (ej: Mercado Pago)" style={{fontFamily:"inherit",fontSize:14,padding:"10px 12px",border:`2px solid ${C.border}`,borderRadius:12,outline:"none",width:"100%",background:C.white,color:C.text}}/>
-                    <button onClick={guardarBilleteraDestino} style={{padding:"10px",borderRadius:12,border:"none",background:C.gold,color:"#fff",fontFamily:"inherit",fontWeight:700,fontSize:14,cursor:"pointer"}}>Guardar billetera de cobro</button>
+                    {billeterasReceptor.length===0?(
+                      <div style={{padding:10,borderRadius:12,background:C.redLight}}>
+                        <p style={{fontSize:13,color:C.red,fontWeight:600}}>⚠️ No tenés billeteras creadas. Andá a Más → Billeteras y creá una primero.</p>
+                      </div>
+                    ):(
+                      <>
+                        <p style={{fontSize:12,color:C.textMid}}>Elegí en cuál billetera querés recibir tus pagos:</p>
+                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                          {billeterasReceptor.map(b=>(
+                            <button key={b.id} onClick={()=>setBilleteraDestId(b.id)}
+                              style={{padding:"12px 16px",borderRadius:14,border:`2px solid ${billeteraDestId===b.id?C.gold:C.border}`,background:billeteraDestId===b.id?C.goldLight:C.white,fontFamily:"inherit",fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:10,textAlign:"left",transition:"all 0.15s",boxShadow:billeteraDestId===b.id?`0 0 0 3px ${C.gold}20`:"none"}}>
+                              <span style={{fontSize:22}}>{b.icono}</span>
+                              <div style={{flex:1}}>
+                                <p style={{fontWeight:700,fontSize:14,color:billeteraDestId===b.id?C.gold:C.text}}>{b.nombre}</p>
+                                <p style={{fontSize:12,color:C.textMid}}>Saldo actual: {fmt(b.saldo)}</p>
+                              </div>
+                              {billeteraDestId===b.id&&<span style={{fontSize:18,color:C.gold}}>✓</span>}
+                            </button>
+                          ))}
+                        </div>
+                        <button onClick={guardarBilleteraDestino} disabled={!billeteraDestId}
+                          style={{padding:"12px",borderRadius:12,border:"none",background:billeteraDestId?C.gold:"#ccc",color:"#fff",fontFamily:"inherit",fontWeight:700,fontSize:14,cursor:billeteraDestId?"pointer":"not-allowed"}}>
+                          Guardar billetera de cobro
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </Card>
