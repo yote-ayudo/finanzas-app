@@ -1098,6 +1098,45 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
     if(onUpdate)onUpdate();
   };
 
+  const procesarPagosPendientes=async(billId)=>{
+    if(!billId)return;
+    const{data:bwData}=await supabase.from("billeteras").select("*").eq("id",billId).single();
+    if(!bwData)return;
+    // Buscar pagos del espacio que NO tienen transaccion en la cuenta del receptor
+    const{data:pagos}=await supabase.from("espacio_movimientos").select("*").eq("espacio_id",espacio.id);
+    if(!pagos||pagos.length===0)return;
+    // Buscar transacciones ya creadas para este espacio
+    const{data:txExistentes}=await supabase.from("transacciones")
+      .select("*").eq("user_id",userId).eq("cat","trabajo").like("descripcion","Sueldo:%");
+    const descExistentes=new Set((txExistentes||[]).map(t=>t.descripcion));
+    let totalSumado=0;
+    for(const pago of pagos){
+      const descKey=`Sueldo: ${pago.descripcion}`;
+      if(!descExistentes.has(descKey)){
+        // Este pago no fue procesado aun
+        await supabase.from("transacciones").insert({
+          user_id:userId,
+          descripcion:descKey,
+          monto:pago.monto,
+          tipo:"ingreso",
+          cat:"trabajo",
+          recurrente:false,
+          fecha:pago.fecha,
+          fecha_custom:pago.fecha,
+          billetera_id:billId,
+        });
+        totalSumado+=pago.monto;
+      }
+    }
+    if(totalSumado>0){
+      await supabase.from("billeteras").update({saldo:bwData.saldo+totalSumado}).eq("id",billId);
+      alert(`✅ Se procesaron ${fmt(totalSumado)} de pagos pendientes. Ya aparecen en tu billetera y patrimonio.`);
+      if(onUpdate)onUpdate();
+    }else{
+      alert("✅ Todos los pagos ya estaban procesados.");
+    }
+  };
+
   const guardarEditMov=async()=>{
     if(!editMov)return;
     await supabase.from("espacio_movimientos").update({descripcion:editMovData.descripcion,monto:parseFloat(editMovData.monto),fecha:editMovData.fecha}).eq("id",editMov);
@@ -1247,7 +1286,13 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                   </button>
                 </div>
                 {miMiembro?.billetera_destino_nombre?(
-                  <p style={{fontSize:13,color:C.textMid}}>Tus pagos van a: <b style={{color:C.gold}}>{miMiembro.billetera_destino_icono} {miMiembro.billetera_destino_nombre}</b></p>
+                  <div>
+                    <p style={{fontSize:13,color:C.textMid}}>Tus pagos van a: <b style={{color:C.gold}}>{miMiembro.billetera_destino_icono} {miMiembro.billetera_destino_nombre}</b></p>
+                    <button onClick={()=>procesarPagosPendientes(miMiembro.billetera_destino_id||"")}
+                      style={{marginTop:10,padding:"10px 14px",borderRadius:12,border:`2px solid ${C.gold}`,background:C.white,color:C.gold,fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer",width:"100%"}}>
+                      🔄 Procesar pagos anteriores pendientes
+                    </button>
+                  </div>
                 ):(
                   <p style={{fontSize:13,color:C.textMid}}>⚠️ Configurá dónde querés recibir tus pagos. Cuando el empleador registre un pago, se te sumará automáticamente.</p>
                 )}
