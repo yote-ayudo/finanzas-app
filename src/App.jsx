@@ -314,11 +314,18 @@ function TabInicio({transacciones,billeteras,balances,setBalances,userId,histori
   const[valObj,setValObj]=useState("");
 
   const now=new Date();
+  const fechaTx=(t)=>{
+    // Use fecha_custom if set, otherwise fecha. Add T12:00 to avoid timezone issues.
+    const raw=t.fecha_custom||t.fecha||"";
+    return raw.length===10?new Date(raw+"T12:00:00"):new Date(raw);
+  };
+  const todayStr=now.toISOString().slice(0,10);
   const filtrar=(txs)=>txs.filter(t=>{
-    const d=new Date(t.fecha_custom||t.fecha);
-    if(periodo==="diario")return d.toDateString()===now.toDateString();
+    const d=fechaTx(t);
+    const dStr=(t.fecha_custom||t.fecha||"").slice(0,10);
+    if(periodo==="diario") return dStr===todayStr;
     if(periodo==="semanal"){const diff=(now-d)/86400000;return diff>=0&&diff<=7;}
-    if(periodo==="mensual")return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+    if(periodo==="mensual") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
     return d.getFullYear()===now.getFullYear();
   });
 
@@ -421,8 +428,8 @@ function TabInicio({transacciones,billeteras,balances,setBalances,userId,histori
 
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:10}}>
         {[
-          {label:"Ahorrás",val:fmtV(ahorro),sub:`${ahorroPct}%`,color:C.green},
-          {label:"Gasto diario",val:fmtV(gastos>0?Math.round(gastos/Math.max(now.getDate(),1)):0),sub:"promedio",color:C.gold},
+          {label:"Ahorrás",val:fmtV(ahorro),sub:`${ahorroPct}% del ingreso`,color:C.green},
+          {label:"Total ingresos",val:fmtV(ingresos),sub:periodo==="diario"?"hoy":periodo==="semanal"?"esta semana":periodo==="mensual"?"este mes":"este año",color:C.accent},
           {label:"Deudas",val:fmtV(balances.deudas||0),sub:"pendiente",color:C.red},
           {label:"Inversiones",val:fmtV(balances.inversiones||0),sub:"total",color:C.purple},
         ].map((s,i)=>(
@@ -434,10 +441,53 @@ function TabInicio({transacciones,billeteras,balances,setBalances,userId,histori
         ))}
       </div>
 
+      {/* Detalle por dia cuando se selecciona Hoy */}
+      {periodo==="diario"&&(
+        <Card>
+          <p style={{fontWeight:700,fontSize:15,marginBottom:14}}>📅 Detalle de hoy — {now.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</p>
+          {txF.length===0?(
+            <p style={{color:C.textMid,fontSize:13,textAlign:"center",padding:16}}>Sin movimientos hoy</p>
+          ):(
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {txF.map(t=>(
+                <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:14,background:t.tipo==="ingreso"?C.greenLight:C.redLight}}>
+                  <span style={{fontSize:20}}>{CATEGORIAS[t.cat]?.icono||"📦"}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <p style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.descripcion}</p>
+                    <p style={{fontSize:11,color:C.textMid}}>{CATEGORIAS[t.cat]?.label||t.cat}</p>
+                  </div>
+                  <p style={{fontWeight:800,fontSize:15,color:t.tipo==="ingreso"?C.green:C.red,flexShrink:0}}>
+                    {t.tipo==="ingreso"?"+":"-"}{fmt(t.monto)}
+                  </p>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:8,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
+                <p style={{fontSize:13,color:C.textMid}}>Ingresos: <b style={{color:C.green}}>{fmt(ingresos)}</b></p>
+                <p style={{fontSize:13,color:C.textMid}}>Gastos: <b style={{color:C.red}}>{fmt(gastos)}</b></p>
+                <p style={{fontSize:13,color:C.textMid}}>Neto: <b style={{color:ahorro>=0?C.green:C.red}}>{ahorro>=0?"+":""}{fmt(ahorro)}</b></p>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
       {historial.length>0&&(
         <>
           <p style={{fontWeight:700,fontSize:16}}>📊 Historial mensual</p>
           <Card><BarChartInteractivo items={historial.slice(0,6).reverse().map(h=>({val:h.ahorro,label:h.mes?.slice(0,3)||""}))} /></Card>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:10}}>
+            {historial.map((h,i)=>(
+              <Card key={i} style={{padding:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <p style={{fontWeight:700,fontSize:13,textTransform:"capitalize"}}>{h.mes}</p>
+                  <p style={{fontSize:12,color:h.ahorro>=0?C.green:C.red,fontWeight:700}}>{h.ahorro>=0?"+":""}{fmt(h.ahorro)}</p>
+                </div>
+                <p style={{fontSize:11,color:C.textMid}}>💚 Ingresos: <b style={{color:C.green}}>{fmt(h.ingresos)}</b></p>
+                <p style={{fontSize:11,color:C.textMid,marginTop:3}}>❤️ Gastos: <b style={{color:C.red}}>{fmt(h.gastos)}</b></p>
+                {h.patrimonio>0&&<p style={{fontSize:11,color:C.textMid,marginTop:3}}>💙 Patrimonio cierre: <b style={{color:C.accent}}>{fmt(h.patrimonio)}</b></p>}
+              </Card>
+            ))}
+          </div>
         </>
       )}
     </div>
@@ -1764,8 +1814,20 @@ export default function App(){
     const{data:txs}=await supabase.from("transacciones").select("*").eq("user_id",session.user.id).gte("fecha",`${mesActual}-01`);
     const ing=(txs||[]).filter(t=>t.tipo==="ingreso").reduce((a,b)=>a+b.monto,0);
     const gas=(txs||[]).filter(t=>t.tipo==="gasto").reduce((a,b)=>a+b.monto,0);
+    // Guardar saldo de billeteras al cierre
+    const{data:bills}=await supabase.from("billeteras").select("*").eq("user_id",session.user.id);
+    const totalBillCierre=(bills||[]).reduce((a,b)=>a+(parseFloat(b.saldo)||0),0);
+    const{data:bals}=await supabase.from("balances").select("*").eq("user_id",session.user.id).maybeSingle();
+    const patrimonioCierre=totalBillCierre+(parseFloat(bals?.inversiones)||0)-(parseFloat(bals?.deudas)||0);
     const nombreMes=hoyD.toLocaleString("es-AR",{month:"long",year:"numeric"});
-    await supabase.from("historial_mensual").insert({user_id:session.user.id,mes:nombreMes,ingresos:ing,gastos:gas,ahorro:ing-gas});
+    await supabase.from("historial_mensual").insert({
+      user_id:session.user.id,
+      mes:nombreMes,
+      ingresos:ing,
+      gastos:gas,
+      ahorro:ing-gas,
+      patrimonio:patrimonioCierre,
+    });
     cargarHistorial();
   },[session,cargarHistorial]);
 
