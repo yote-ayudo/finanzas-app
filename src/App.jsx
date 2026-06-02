@@ -1244,16 +1244,29 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   const totalMes=movsMes.reduce((a,b)=>a+b.monto,0);
   const esCreador=espacio.creado_por===userId;
 
-  // Promedio diario del mes
-  const diasDelMes=new Date().getDate();
-  const promedioDiario=diasDelMes>0?Math.round(totalMes/diasDelMes):0;
+  // Agrupar pagos por mes para sueldo
+  const pagosPorMes={};
+  movimientos.forEach(m=>{
+    const mes=m.fecha?.slice(0,7)||"";
+    if(!pagosPorMes[mes]) pagosPorMes[mes]={total:0,movs:[]};
+    pagosPorMes[mes].total+=m.monto;
+    pagosPorMes[mes].movs.push(m);
+  });
+  const mesesOrdenados=Object.keys(pagosPorMes).sort().reverse();
 
-  // Para sueldo: totales por dia en el mes
+  // Para sueldo: totales por dia en el mes actual
   const pagosPorDia={};
   movsMes.forEach(m=>{
     const d=m.fecha;
     pagosPorDia[d]=(pagosPorDia[d]||0)+m.monto;
   });
+
+  // Nombre legible de mes
+  const nombreMes=(mesStr)=>{
+    if(!mesStr) return "";
+    const[y,mo]=mesStr.split("-");
+    return new Date(parseInt(y),parseInt(mo)-1,1).toLocaleString("es-AR",{month:"long",year:"numeric"});
+  };
 
   return(
     <div style={{position:"fixed",inset:0,background:C.bg,zIndex:300,overflowY:"auto"}}>
@@ -1291,8 +1304,13 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
 
             {/* Tarjeta resumen */}
             <Card style={{background:`linear-gradient(135deg,${espacio.tipo==="sueldo"?C.gold:C.accent},${espacio.tipo==="sueldo"?"#b45309":"#1250c0"})`,border:"none"}}>
-              <p style={{color:"#ffffffaa",fontSize:11,fontWeight:600,marginBottom:6}}>{espacio.tipo==="sueldo"?"TOTAL PAGADO":"TOTAL ACUMULADO"}</p>
-              <p style={{color:"#fff",fontSize:36,fontWeight:800}}>{fmt(total)}</p>
+              <p style={{color:"#ffffffaa",fontSize:11,fontWeight:600,marginBottom:6}}>{espacio.tipo==="sueldo"?"PAGADO ESTE MES":"TOTAL ACUMULADO"}</p>
+              <p style={{color:"#fff",fontSize:36,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?totalMes:total)}</p>
+              {espacio.tipo==="sueldo"&&(
+                <p style={{color:"#ffffffbb",fontSize:13,marginTop:4}}>
+                  {new Date().toLocaleString("es-AR",{month:"long",year:"numeric"})}
+                </p>
+              )}
               {espacio.objetivo>0&&espacio.tipo!=="sueldo"&&(
                 <>
                   <p style={{color:"#ffffffbb",fontSize:13,marginTop:6}}>Objetivo: {fmt(espacio.objetivo)}</p>
@@ -1307,13 +1325,13 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
               )}
               <div style={{display:"flex",gap:0,marginTop:14,borderTop:"1px solid #ffffff30",paddingTop:12}}>
                 <div style={{flex:1}}>
-                  <p style={{color:"#ffffffaa",fontSize:11}}>{espacio.tipo==="sueldo"?"Este mes":"Mi aporte"}</p>
-                  <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?totalMes:miTotal)}</p>
+                  <p style={{color:"#ffffffaa",fontSize:11}}>{espacio.tipo==="sueldo"?"Total histórico":"Mi aporte"}</p>
+                  <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?movimientos.reduce((a,b)=>a+b.monto,0):miTotal)}</p>
                 </div>
                 {espacio.tipo==="sueldo"&&(
                   <div style={{flex:1}}>
-                    <p style={{color:"#ffffffaa",fontSize:11}}>Promedio diario</p>
-                    <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(promedioDiario)}/día</p>
+                    <p style={{color:"#ffffffaa",fontSize:11}}>Pagos este mes</p>
+                    <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{movsMes.length} pagos</p>
                   </div>
                 )}
                 {espacio.tipo!=="sueldo"&&(
@@ -1452,23 +1470,46 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
               </div>
             </div>
 
-            {/* Resumen por día (sueldo) */}
-            {espacio.tipo==="sueldo"&&Object.keys(pagosPorDia).length>0&&(
-              <Card style={{padding:14}}>
-                <p style={{fontWeight:700,fontSize:13,marginBottom:10,color:C.gold}}>📅 Pagos del mes por día</p>
-                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {Object.entries(pagosPorDia).sort().map(([d,v])=>(
-                    <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",borderRadius:10,background:C.bg}}>
-                      <p style={{fontSize:12,color:C.textMid}}>{new Date(d+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"})}</p>
-                      <p style={{fontSize:13,fontWeight:700,color:C.gold}}>+{fmt(v)}</p>
-                    </div>
-                  ))}
-                </div>
-                <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between"}}>
-                  <p style={{fontSize:12,color:C.textMid}}>Promedio/día este mes:</p>
-                  <p style={{fontSize:13,fontWeight:700,color:C.gold}}>{fmt(promedioDiario)}</p>
-                </div>
-              </Card>
+            {/* Historial por mes (sueldo) */}
+            {espacio.tipo==="sueldo"&&mesesOrdenados.length>0&&(
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {mesesOrdenados.map(mes=>{
+                  const dataMes=pagosPorMes[mes];
+                  const esMesActual=mes===mesActual;
+                  const pagosDia={};
+                  dataMes.movs.forEach(m=>{pagosDia[m.fecha]=(pagosDia[m.fecha]||0)+m.monto;});
+                  const[abierto,setAbierto]=useState(esMesActual);
+                  return(
+                    <Card key={mes} style={{padding:0,overflow:"hidden",border:esMesActual?`2px solid ${C.gold}`:undefined}}>
+                      <button onClick={()=>setAbierto(!abierto)}
+                        style={{width:"100%",padding:"14px 16px",background:esMesActual?C.goldLight:C.white,border:"none",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
+                        <div style={{textAlign:"left"}}>
+                          <p style={{fontWeight:700,fontSize:14,color:esMesActual?C.gold:C.text,textTransform:"capitalize"}}>{esMesActual?"📅 Este mes — ":""}{nombreMes(mes)}</p>
+                          <p style={{fontSize:12,color:C.textMid,marginTop:2}}>{dataMes.movs.length} pagos</p>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <p style={{fontWeight:800,fontSize:16,color:esMesActual?C.gold:C.text}}>{fmt(dataMes.total)}</p>
+                          <p style={{fontSize:12,color:C.textMid}}>{abierto?"▲":"▼"}</p>
+                        </div>
+                      </button>
+                      {abierto&&(
+                        <div style={{padding:"0 16px 14px",display:"flex",flexDirection:"column",gap:6}}>
+                          {Object.entries(pagosDia).sort().reverse().map(([d,v])=>(
+                            <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",borderRadius:10,background:C.bg}}>
+                              <p style={{fontSize:12,color:C.textMid}}>{new Date(d+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"short"})}</p>
+                              <p style={{fontSize:13,fontWeight:700,color:C.gold}}>+{fmt(v)}</p>
+                            </div>
+                          ))}
+                          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:`1px solid ${C.border}`}}>
+                            <p style={{fontSize:12,color:C.textMid,fontWeight:600}}>Total del mes:</p>
+                            <p style={{fontSize:13,fontWeight:800,color:esMesActual?C.gold:C.text}}>{fmt(dataMes.total)}</p>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
             )}
 
             {loading?<p style={{color:C.textMid,textAlign:"center",padding:20}}>Cargando...</p>:
