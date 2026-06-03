@@ -1,4 +1,27 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Component } from "react";
+
+class ErrorBoundary extends Component {
+  constructor(props){ super(props); this.state={hasError:false,error:null}; }
+  static getDerivedStateFromError(error){ return {hasError:true,error}; }
+  componentDidCatch(error,info){ console.error("ErrorBoundary caught:",error,info); }
+  render(){
+    if(this.state.hasError){
+      return(
+        <div style={{position:"fixed",inset:0,background:"#fff",zIndex:400,padding:20,overflowY:"auto"}}>
+          <button onClick={()=>{ this.setState({hasError:false,error:null}); if(this.props.onClose)this.props.onClose(); }}
+            style={{padding:"10px 20px",borderRadius:12,background:"#1A6FE8",color:"#fff",border:"none",fontFamily:"sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:16}}>
+            ← Volver
+          </button>
+          <p style={{fontWeight:700,fontSize:16,color:"#DC2626",marginBottom:8}}>Error al cargar</p>
+          <pre style={{fontSize:11,color:"#475569",background:"#F4F6FB",padding:12,borderRadius:8,whiteSpace:"pre-wrap",wordBreak:"break-all"}}>
+            {this.state.error?.toString()}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { supabase } from "./supabase";
 
 const C = {
@@ -1675,7 +1698,11 @@ function TabCompartido({userId,isMobile}){
         </Modal>
       )}
 
-      {detalle&&<DetalleEspacio espacioInit={detalle} userId={userId} isMobile={isMobile} onClose={()=>setDetalle(null)} onUpdate={cargar}/>}
+      {detalle&&(
+            <ErrorBoundary onClose={()=>setDetalle(null)}>
+              <DetalleEspacio espacioInit={detalle} userId={userId} isMobile={isMobile} onClose={()=>setDetalle(null)} onUpdate={cargar}/>
+            </ErrorBoundary>
+          )}
     </div>
   );
 }
