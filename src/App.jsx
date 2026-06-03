@@ -1035,6 +1035,42 @@ function TabBilleteras({billeteras,setBilleteras,userId}){
   );
 }
 
+// ─── MES CARD SUELDO ─────────────────────────────────────────────────────────
+function MesCardSueldo({mes, dataMes, pagosDia, esMesActual, nombreMes}){
+  const[abierto,setAbierto]=useState(esMesActual);
+  return(
+    <Card style={{padding:0,overflow:"hidden",border:esMesActual?`2px solid ${C.gold}`:undefined}}>
+      <button onClick={()=>setAbierto(!abierto)}
+        style={{width:"100%",padding:"14px 16px",background:esMesActual?C.goldLight:C.white,border:"none",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
+        <div style={{textAlign:"left"}}>
+          <p style={{fontWeight:700,fontSize:14,color:esMesActual?C.gold:C.text,textTransform:"capitalize"}}>
+            {esMesActual?"📅 Este mes — ":""}{nombreMes(mes)}
+          </p>
+          <p style={{fontSize:12,color:C.textMid,marginTop:2}}>{dataMes.movs.length} pagos</p>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <p style={{fontWeight:800,fontSize:16,color:esMesActual?C.gold:C.text}}>{fmt(dataMes.total)}</p>
+          <p style={{fontSize:12,color:C.textMid}}>{abierto?"▲":"▼"}</p>
+        </div>
+      </button>
+      {abierto&&(
+        <div style={{padding:"0 16px 14px",display:"flex",flexDirection:"column",gap:6}}>
+          {Object.entries(pagosDia).sort().reverse().map(([d,v])=>(
+            <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",borderRadius:10,background:C.bg}}>
+              <p style={{fontSize:12,color:C.textMid}}>{new Date(d+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"short"})}</p>
+              <p style={{fontSize:13,fontWeight:700,color:C.gold}}>+{fmt(v)}</p>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:`1px solid ${C.border}`}}>
+            <p style={{fontSize:12,color:C.textMid,fontWeight:600}}>Total del mes:</p>
+            <p style={{fontSize:13,fontWeight:800,color:esMesActual?C.gold:C.text}}>{fmt(dataMes.total)}</p>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ─── DETALLE ESPACIO ──────────────────────────────────────────────────────────
 function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   const[movimientos,setMovimientos]=useState([]);
@@ -1478,35 +1514,8 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                   const esMesActual=mes===mesActual;
                   const pagosDia={};
                   dataMes.movs.forEach(m=>{pagosDia[m.fecha]=(pagosDia[m.fecha]||0)+m.monto;});
-                  const[abierto,setAbierto]=useState(esMesActual);
                   return(
-                    <Card key={mes} style={{padding:0,overflow:"hidden",border:esMesActual?`2px solid ${C.gold}`:undefined}}>
-                      <button onClick={()=>setAbierto(!abierto)}
-                        style={{width:"100%",padding:"14px 16px",background:esMesActual?C.goldLight:C.white,border:"none",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
-                        <div style={{textAlign:"left"}}>
-                          <p style={{fontWeight:700,fontSize:14,color:esMesActual?C.gold:C.text,textTransform:"capitalize"}}>{esMesActual?"📅 Este mes — ":""}{nombreMes(mes)}</p>
-                          <p style={{fontSize:12,color:C.textMid,marginTop:2}}>{dataMes.movs.length} pagos</p>
-                        </div>
-                        <div style={{textAlign:"right"}}>
-                          <p style={{fontWeight:800,fontSize:16,color:esMesActual?C.gold:C.text}}>{fmt(dataMes.total)}</p>
-                          <p style={{fontSize:12,color:C.textMid}}>{abierto?"▲":"▼"}</p>
-                        </div>
-                      </button>
-                      {abierto&&(
-                        <div style={{padding:"0 16px 14px",display:"flex",flexDirection:"column",gap:6}}>
-                          {Object.entries(pagosDia).sort().reverse().map(([d,v])=>(
-                            <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",borderRadius:10,background:C.bg}}>
-                              <p style={{fontSize:12,color:C.textMid}}>{new Date(d+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"short"})}</p>
-                              <p style={{fontSize:13,fontWeight:700,color:C.gold}}>+{fmt(v)}</p>
-                            </div>
-                          ))}
-                          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:`1px solid ${C.border}`}}>
-                            <p style={{fontSize:12,color:C.textMid,fontWeight:600}}>Total del mes:</p>
-                            <p style={{fontSize:13,fontWeight:800,color:esMesActual?C.gold:C.text}}>{fmt(dataMes.total)}</p>
-                          </div>
-                        </div>
-                      )}
-                    </Card>
+                    <MesCardSueldo key={mes} mes={mes} dataMes={dataMes} pagosDia={pagosDia} esMesActual={esMesActual} nombreMes={nombreMes}/>
                   );
                 })}
               </div>
@@ -1809,8 +1818,17 @@ export default function App(){
 
   const cargarHistorial=useCallback(async()=>{
     if(!session)return;
-    const{data}=await supabase.from("historial_mensual").select("*").eq("user_id",session.user.id).order("created_at",{ascending:false}).limit(6);
-    if(data)setHistorial(data);
+    const{data}=await supabase.from("historial_mensual").select("*").eq("user_id",session.user.id).order("created_at",{ascending:false}).limit(50);
+    if(data){
+      // Deduplicar por mes - quedarse con el más reciente de cada mes
+      const seen=new Set();
+      const deduped=data.filter(h=>{
+        if(seen.has(h.mes))return false;
+        seen.add(h.mes);
+        return true;
+      });
+      setHistorial(deduped.slice(0,12));
+    }
   },[session]);
 
   const cargarNotifs=useCallback(async()=>{
