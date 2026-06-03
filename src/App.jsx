@@ -1072,7 +1072,8 @@ function MesCardSueldo({mes, dataMes, pagosDia, esMesActual, nombreMes}){
 }
 
 // ─── DETALLE ESPACIO ──────────────────────────────────────────────────────────
-function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
+function DetalleEspacio({espacioInit,userId,onClose,isMobile,onUpdate}){
+  const[espacio,setEspacio]=useState(espacioInit);
   const[movimientos,setMovimientos]=useState([]);
   const[miembros,setMiembros]=useState([]);
   const[miMiembro,setMiMiembro]=useState(null);
@@ -1085,149 +1086,164 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   const[editMov,setEditMov]=useState(null);
   const[editMovData,setEditMovData]=useState({});
   const[editEspacio,setEditEspacio]=useState(false);
-  const[editNombre,setEditNombre]=useState(espacio.nombre);
-  const[editObj,setEditObj]=useState(espacio.objetivo||0);
+  const[editNombre,setEditNombre]=useState(espacioInit.nombre||"");
+  const[editObj,setEditObj]=useState(espacioInit.objetivo||0);
   const[configBilletera,setConfigBilletera]=useState(false);
   const[billeteraDestId,setBilleteraDestId]=useState("");
-  const[billeteraDestNombre,setBilleteraDestNombre]=useState("");
-  const[billeteraDestIcono,setBilleteraDestIcono]=useState("💳");
   const[billeterasReceptor,setBilleterasReceptor]=useState([]);
+
+  const esCreador=espacio.creado_por===userId;
+  const mesActual=new Date().toISOString().slice(0,7);
 
   const cargarTodo=useCallback(async()=>{
     setLoading(true);
-    const[{data:movs},{data:miemb}]=await Promise.all([
-      supabase.from("espacio_movimientos").select("*").eq("espacio_id",espacio.id).order("fecha",{ascending:false}),
-      supabase.from("espacio_miembros").select("*").eq("espacio_id",espacio.id),
-    ]);
-    setMovimientos(movs||[]);
-    setMiembros(miemb||[]);
-    const yo=(miemb||[]).find(m=>m.user_id===userId);
-    setMiMiembro(yo||null);
-    if(yo?.billetera_destino_nombre){
-      setBilleteraDestNombre(yo.billetera_destino_nombre);
-      setBilleteraDestIcono(yo.billetera_destino_icono||"💳");
-      setBilleteraDestId(yo.billetera_destino_id||"");
-    }
-    // Cargar billeteras del usuario actual (para el receptor)
-    const{data:myBills}=await supabase.from("billeteras").select("*").eq("user_id",userId).order("created_at");
-    setBilleterasReceptor(myBills||[]);
+    try{
+      const[r1,r2,r3]=await Promise.all([
+        supabase.from("espacio_movimientos").select("*").eq("espacio_id",espacio.id).order("fecha",{ascending:false}),
+        supabase.from("espacio_miembros").select("*").eq("espacio_id",espacio.id),
+        supabase.from("billeteras").select("*").eq("user_id",userId).order("created_at"),
+      ]);
+      const movs=r1.data||[];
+      const miemb=r2.data||[];
+      const myBills=r3.data||[];
+      setMovimientos(movs);
+      setMiembros(miemb);
+      setBilleterasReceptor(myBills);
+      const yo=miemb.find(m=>m.user_id===userId)||null;
+      setMiMiembro(yo);
+      if(yo?.billetera_destino_id) setBilleteraDestId(yo.billetera_destino_id);
+    }catch(e){console.error("cargarTodo error:",e);}
     setLoading(false);
   },[espacio.id,userId]);
 
   useEffect(()=>{cargarTodo();},[cargarTodo]);
 
+  // Agrupaciones
+  const movsMes=movimientos.filter(m=>(m.fecha||"").slice(0,7)===mesActual);
+  const totalMes=movsMes.reduce((a,b)=>a+b.monto,0);
+  const totalHistorico=movimientos.reduce((a,b)=>a+b.monto,0);
+
+  const pagosPorMes={};
+  movimientos.forEach(m=>{
+    const mes=(m.fecha||"").slice(0,7);
+    if(!mes)return;
+    if(!pagosPorMes[mes])pagosPorMes[mes]={total:0,movs:[]};
+    pagosPorMes[mes].total+=m.monto;
+    pagosPorMes[mes].movs.push(m);
+  });
+  const mesesOrdenados=Object.keys(pagosPorMes).sort().reverse();
+
+  const filtrarMov=(movs)=>{
+    const now=new Date();
+    return movs.filter(m=>{
+      const d=new Date((m.fecha||"")+"T12:00:00");
+      if(periodoVer==="semana")return (now-d)/86400000<=7;
+      if(periodoVer==="mes")return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+      if(periodoVer==="anio")return d.getFullYear()===now.getFullYear();
+      return true;
+    });
+  };
+  const movF=filtrarMov(movimientos);
+  const miTotal=movF.filter(m=>m.user_id===userId).reduce((a,b)=>a+b.monto,0);
+  const otroTotal=movF.reduce((a,b)=>a+b.monto,0)-miTotal;
+  const objPct=espacio.objetivo>0?Math.min(Math.round((totalHistorico/espacio.objetivo)*100),100):0;
+
+  const nombreMes=(mesStr)=>{
+    if(!mesStr)return "";
+    const[y,mo]=mesStr.split("-");
+    return new Date(parseInt(y),parseInt(mo)-1,1).toLocaleString("es-AR",{month:"long",year:"numeric"});
+  };
+
   const agregar=async()=>{
     if(!desc.trim()||!monto)return;
-    const userMeta=await supabase.auth.getUser();
-    const nombreU=userMeta.data?.user?.user_metadata?.nombre||userMeta.data?.user?.email?.split("@")[0]||"Vos";
     const montoN=parseFloat(monto);
-    await supabase.from("espacio_movimientos").insert({
-      espacio_id:espacio.id,user_id:userId,descripcion:desc,
-      monto:montoN,tipo:"aporte",fecha,nombre_usuario:nombreU,es_ingreso_receptor:false,
-    });
-
-    // Si es sueldo, notificar al receptor para que actualice su billetera
-    if(espacio.tipo==="sueldo"){
-      // Buscar el miembro receptor (no creador)
-      const receptor=miembros.find(m=>m.user_id!==userId&&m.rol==="miembro");
-      if(receptor){
-        // Crear notificación para el receptor
-        await supabase.from("notificaciones").insert({
-          user_id:receptor.user_id,
-          titulo:"💼 Nuevo pago de sueldo",
-          mensaje:`Recibiste ${fmt(montoN)} - "${desc}". ${receptor.billetera_destino_nombre?`Se agregó a tu ${receptor.billetera_destino_icono||"💳"} ${receptor.billetera_destino_nombre}`:"Configurá tu billetera de cobro en el espacio compartido."}`,
-        });
-        // Si el receptor tiene billetera configurada, actualizar su saldo por ID
-        const billId=receptor.billetera_destino_id||null;
-        if(billId){
-          const{data:bwData}=await supabase.from("billeteras").select("*").eq("id",billId).single();
-          if(bwData){
-            // Sumar al saldo de la billetera del receptor
-            await supabase.from("billeteras").update({saldo:bwData.saldo+montoN}).eq("id",billId);
-            // Crear transacción de ingreso en la cuenta del receptor
-            await supabase.from("transacciones").insert({
-              user_id:receptor.user_id,
-              descripcion:`Sueldo: ${desc}`,
-              monto:montoN,
-              tipo:"ingreso",
-              cat:"trabajo",
-              recurrente:false,
-              fecha,
-              fecha_custom:fecha,
-              billetera_id:billId,
-            });
+    if(isNaN(montoN)||montoN<=0)return;
+    try{
+      const userMeta=await supabase.auth.getUser();
+      const nombreU=userMeta.data?.user?.user_metadata?.nombre||userMeta.data?.user?.email?.split("@")[0]||"Vos";
+      await supabase.from("espacio_movimientos").insert({
+        espacio_id:espacio.id,user_id:userId,descripcion:desc,
+        monto:montoN,tipo:"aporte",fecha,nombre_usuario:nombreU,
+      });
+      if(espacio.tipo==="sueldo"){
+        const receptor=miembros.find(m=>m.user_id!==userId&&m.rol==="miembro");
+        if(receptor){
+          await supabase.from("notificaciones").insert({
+            user_id:receptor.user_id,
+            titulo:"💼 Nuevo pago de sueldo",
+            mensaje:`Recibiste ${fmt(montoN)} - "${desc}". ${receptor.billetera_destino_nombre?`Se agregó a ${receptor.billetera_destino_icono||"💳"} ${receptor.billetera_destino_nombre}`:"Configurá tu billetera de cobro."}`,
+          });
+          if(receptor.billetera_destino_id){
+            const{data:bwData}=await supabase.from("billeteras").select("*").eq("id",receptor.billetera_destino_id).single();
+            if(bwData){
+              await supabase.from("billeteras").update({saldo:bwData.saldo+montoN}).eq("id",bwData.id);
+              await supabase.from("transacciones").insert({
+                user_id:receptor.user_id,descripcion:`Sueldo: ${desc}`,monto:montoN,
+                tipo:"ingreso",cat:"trabajo",recurrente:false,fecha,fecha_custom:fecha,billetera_id:bwData.id,
+              });
+            }
           }
         }
       }
-    }
-
-    setDesc("");setMonto("");setFecha(hoy());
-    cargarTodo();
-    if(onUpdate)onUpdate();
+      setDesc("");setMonto("");setFecha(hoy());
+      await cargarTodo();
+      if(onUpdate)onUpdate();
+    }catch(e){console.error("agregar error:",e);}
   };
 
   const guardarBilleteraDestino=async()=>{
     if(!billeteraDestId)return;
     const bw=billeterasReceptor.find(b=>b.id===billeteraDestId);
     if(!bw)return;
-    await supabase.from("espacio_miembros")
-      .update({
+    try{
+      await supabase.from("espacio_miembros").update({
         billetera_destino_nombre:bw.nombre,
         billetera_destino_icono:bw.icono,
         billetera_destino_id:bw.id,
-      })
-      .eq("espacio_id",espacio.id).eq("user_id",userId);
-    setBilleteraDestNombre(bw.nombre);
-    setBilleteraDestIcono(bw.icono);
-    setMiMiembro(prev=>({...prev,billetera_destino_nombre:bw.nombre,billetera_destino_icono:bw.icono,billetera_destino_id:bw.id}));
-    setConfigBilletera(false);
-    if(onUpdate)onUpdate();
+      }).eq("espacio_id",espacio.id).eq("user_id",userId);
+      setMiMiembro(prev=>({...prev,billetera_destino_nombre:bw.nombre,billetera_destino_icono:bw.icono,billetera_destino_id:bw.id}));
+      setConfigBilletera(false);
+      if(onUpdate)onUpdate();
+    }catch(e){console.error("guardar billetera error:",e);}
   };
 
   const procesarPagosPendientes=async(billId)=>{
     if(!billId)return;
-    const{data:bwData}=await supabase.from("billeteras").select("*").eq("id",billId).single();
-    if(!bwData)return;
-    // Buscar pagos del espacio que NO tienen transaccion en la cuenta del receptor
-    const{data:pagos}=await supabase.from("espacio_movimientos").select("*").eq("espacio_id",espacio.id);
-    if(!pagos||pagos.length===0)return;
-    // Buscar transacciones ya creadas para este espacio
-    const{data:txExistentes}=await supabase.from("transacciones")
-      .select("*").eq("user_id",userId).eq("cat","trabajo").like("descripcion","Sueldo:%");
-    const descExistentes=new Set((txExistentes||[]).map(t=>t.descripcion));
-    let totalSumado=0;
-    for(const pago of pagos){
-      const descKey=`Sueldo: ${pago.descripcion}`;
-      if(!descExistentes.has(descKey)){
-        // Este pago no fue procesado aun
-        await supabase.from("transacciones").insert({
-          user_id:userId,
-          descripcion:descKey,
-          monto:pago.monto,
-          tipo:"ingreso",
-          cat:"trabajo",
-          recurrente:false,
-          fecha:pago.fecha,
-          fecha_custom:pago.fecha,
-          billetera_id:billId,
-        });
-        totalSumado+=pago.monto;
+    try{
+      const{data:bwData}=await supabase.from("billeteras").select("*").eq("id",billId).single();
+      if(!bwData)return;
+      const{data:txExistentes}=await supabase.from("transacciones").select("descripcion").eq("user_id",userId).eq("cat","trabajo").like("descripcion","Sueldo:%");
+      const descExistentes=new Set((txExistentes||[]).map(t=>t.descripcion));
+      let totalSumado=0;
+      for(const pago of movimientos){
+        const descKey=`Sueldo: ${pago.descripcion}`;
+        if(!descExistentes.has(descKey)){
+          await supabase.from("transacciones").insert({
+            user_id:userId,descripcion:descKey,monto:pago.monto,tipo:"ingreso",
+            cat:"trabajo",recurrente:false,fecha:pago.fecha,fecha_custom:pago.fecha,billetera_id:billId,
+          });
+          totalSumado+=pago.monto;
+        }
       }
-    }
-    if(totalSumado>0){
-      await supabase.from("billeteras").update({saldo:bwData.saldo+totalSumado}).eq("id",billId);
-      alert(`✅ Se procesaron ${fmt(totalSumado)} de pagos pendientes. Ya aparecen en tu billetera y patrimonio.`);
-      if(onUpdate)onUpdate();
-    }else{
-      alert("✅ Todos los pagos ya estaban procesados.");
-    }
+      if(totalSumado>0){
+        await supabase.from("billeteras").update({saldo:bwData.saldo+totalSumado}).eq("id",billId);
+        alert(`✅ Se procesaron ${fmt(totalSumado)} de pagos pendientes.`);
+        if(onUpdate)onUpdate();
+      }else{
+        alert("✅ Todos los pagos ya estaban procesados.");
+      }
+    }catch(e){alert("Error procesando pagos.");}
   };
 
   const guardarEditMov=async()=>{
     if(!editMov)return;
-    await supabase.from("espacio_movimientos").update({descripcion:editMovData.descripcion,monto:parseFloat(editMovData.monto),fecha:editMovData.fecha}).eq("id",editMov);
-    setMovimientos(prev=>prev.map(m=>m.id===editMov?{...m,...editMovData,monto:parseFloat(editMovData.monto)}:m));
-    setEditMov(null);
+    try{
+      await supabase.from("espacio_movimientos").update({
+        descripcion:editMovData.descripcion,monto:parseFloat(editMovData.monto),fecha:editMovData.fecha
+      }).eq("id",editMov);
+      setMovimientos(prev=>prev.map(m=>m.id===editMov?{...m,...editMovData,monto:parseFloat(editMovData.monto)}:m));
+      setEditMov(null);
+    }catch(e){console.error(e);}
   };
 
   const eliminarMov=async(id)=>{
@@ -1238,17 +1254,22 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
   };
 
   const guardarEspacio=async()=>{
-    await supabase.from("espacios").update({nombre:editNombre,objetivo:parseFloat(editObj)||0}).eq("id",espacio.id);
-    espacio.nombre=editNombre;espacio.objetivo=parseFloat(editObj)||0;
-    setEditEspacio(false);if(onUpdate)onUpdate();
+    try{
+      await supabase.from("espacios").update({nombre:editNombre,objetivo:parseFloat(editObj)||0}).eq("id",espacio.id);
+      setEspacio(prev=>({...prev,nombre:editNombre,objetivo:parseFloat(editObj)||0}));
+      setEditEspacio(false);
+      if(onUpdate)onUpdate();
+    }catch(e){console.error(e);}
   };
 
   const eliminarEspacio=async()=>{
-    if(!window.confirm("¿Eliminás este espacio? Se eliminarán todos los movimientos."))return;
-    await supabase.from("espacio_movimientos").delete().eq("espacio_id",espacio.id);
-    await supabase.from("espacio_miembros").delete().eq("espacio_id",espacio.id);
-    await supabase.from("espacios").delete().eq("id",espacio.id);
-    onClose();if(onUpdate)onUpdate();
+    if(!window.confirm("¿Eliminás este espacio?"))return;
+    try{
+      await supabase.from("espacio_movimientos").delete().eq("espacio_id",espacio.id);
+      await supabase.from("espacio_miembros").delete().eq("espacio_id",espacio.id);
+      await supabase.from("espacios").delete().eq("id",espacio.id);
+      onClose();if(onUpdate)onUpdate();
+    }catch(e){console.error(e);}
   };
 
   const salirEspacio=async()=>{
@@ -1257,78 +1278,33 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
     onClose();if(onUpdate)onUpdate();
   };
 
-  const copiarCodigo=()=>{navigator.clipboard.writeText(espacio.codigo).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2000);});};
+  const copiarCodigo=()=>{ navigator.clipboard.writeText(espacio.codigo||"").then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2000);}); };
 
-  const filtrarMov=(movs)=>{
-    const now=new Date();
-    return movs.filter(m=>{
-      const d=new Date(m.fecha);
-      if(periodoVer==="semana")return (now-d)/86400000<=7;
-      if(periodoVer==="mes")return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
-      if(periodoVer==="anio")return d.getFullYear()===now.getFullYear();
-      return true;
-    });
-  };
-
-  const movF=filtrarMov(movimientos);
-  const total=movF.reduce((a,b)=>a+b.monto,0);
-  const miTotal=movF.filter(m=>m.user_id===userId).reduce((a,b)=>a+b.monto,0);
-  const otroTotal=total-miTotal;
-  const objPct=espacio.objetivo>0?Math.min(Math.round((movimientos.reduce((a,b)=>a+b.monto,0)/espacio.objetivo)*100),100):0;
-  const mesActual=new Date().toISOString().slice(0,7);
-  const movsMes=movimientos.filter(m=>m.fecha?.slice(0,7)===mesActual);
-  const totalMes=movsMes.reduce((a,b)=>a+b.monto,0);
-  const esCreador=espacio.creado_por===userId;
-
-  // Agrupar pagos por mes para sueldo
-  const pagosPorMes={};
-  movimientos.forEach(m=>{
-    const mes=m.fecha?.slice(0,7)||"";
-    if(!pagosPorMes[mes]) pagosPorMes[mes]={total:0,movs:[]};
-    pagosPorMes[mes].total+=m.monto;
-    pagosPorMes[mes].movs.push(m);
-  });
-  const mesesOrdenados=Object.keys(pagosPorMes).sort().reverse();
-
-  // Para sueldo: totales por dia en el mes actual
-  const pagosPorDia={};
-  movsMes.forEach(m=>{
-    const d=m.fecha;
-    pagosPorDia[d]=(pagosPorDia[d]||0)+m.monto;
-  });
-
-  // Nombre legible de mes
-  const nombreMes=(mesStr)=>{
-    if(!mesStr) return "";
-    const[y,mo]=mesStr.split("-");
-    return new Date(parseInt(y),parseInt(mo)-1,1).toLocaleString("es-AR",{month:"long",year:"numeric"});
-  };
+  const receptor=miembros.find(m=>m.user_id!==userId&&m.rol==="miembro");
 
   return(
     <div style={{position:"fixed",inset:0,background:C.bg,zIndex:300,overflowY:"auto"}}>
       <div style={{maxWidth:isMobile?"100%":900,margin:"0 auto",paddingBottom:40}}>
         {/* Header */}
-        <div style={{background:C.white,borderBottom:`2px solid ${C.border}`,padding:"16px 20px",position:"sticky",top:0,zIndex:10,display:"flex",alignItems:"center",gap:14}}>
-          <button onClick={onClose} style={{width:38,height:38,minWidth:38,borderRadius:12,background:C.bg,border:"none",cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
+        <div style={{background:C.white,borderBottom:`2px solid ${C.border}`,padding:"16px 20px",position:"sticky",top:0,zIndex:10,display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={onClose} style={{width:38,height:38,minWidth:38,borderRadius:12,background:C.bg,border:"none",cursor:"pointer",fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>←</button>
           <div style={{flex:1,minWidth:0}}>
             {editEspacio?(
               <input value={editNombre} onChange={e=>setEditNombre(e.target.value)} style={{fontFamily:"inherit",fontSize:16,fontWeight:800,border:`2px solid ${C.accent}`,borderRadius:10,padding:"4px 10px",outline:"none",width:"100%",background:C.white,color:C.text}}/>
             ):(
               <p style={{fontWeight:800,fontSize:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{espacio.nombre}</p>
             )}
-            {!puedeEditar&&<p style={{color:C.gold,fontSize:11,fontWeight:700}}>👁️ Solo lectura</p>}
           </div>
           <div style={{display:"flex",gap:6,flexShrink:0}}>
             {esCreador&&(editEspacio?(
               <>
-                <button onClick={guardarEspacio} style={{padding:"8px 12px",borderRadius:10,border:"none",background:C.green,color:"#fff",fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>✓ Guardar</button>
+                <button onClick={guardarEspacio} style={{padding:"8px 12px",borderRadius:10,border:"none",background:C.green,color:"#fff",fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>✓</button>
                 <button onClick={()=>setEditEspacio(false)} style={{padding:"8px 12px",borderRadius:10,border:`2px solid ${C.border}`,background:C.white,color:C.textMid,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
               </>
             ):(
               <button onClick={()=>setEditEspacio(true)} style={{padding:"8px 12px",borderRadius:10,border:`2px solid ${C.accent}`,background:C.accentLight,color:C.accent,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>✏️</button>
             ))}
-            <button onClick={copiarCodigo}
-              style={{padding:"9px 12px",borderRadius:12,border:`2px solid ${copiado?C.green:C.accent}`,background:copiado?C.greenLight:C.accentLight,color:copiado?C.green:C.accent,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>
+            <button onClick={copiarCodigo} style={{padding:"9px 12px",borderRadius:12,border:`2px solid ${copiado?C.green:C.accent}`,background:copiado?C.greenLight:C.accentLight,color:copiado?C.green:C.accent,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>
               {copiado?"✓":"📋"} {espacio.codigo}
             </button>
           </div>
@@ -1337,20 +1313,19 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
         <div style={{padding:"16px 20px",display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           {/* Columna izquierda */}
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
-
-            {/* Tarjeta resumen */}
+            {/* Hero */}
             <Card style={{background:`linear-gradient(135deg,${espacio.tipo==="sueldo"?C.gold:C.accent},${espacio.tipo==="sueldo"?"#b45309":"#1250c0"})`,border:"none"}}>
-              <p style={{color:"#ffffffaa",fontSize:11,fontWeight:600,marginBottom:6}}>{espacio.tipo==="sueldo"?"PAGADO ESTE MES":"TOTAL ACUMULADO"}</p>
-              <p style={{color:"#fff",fontSize:36,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?totalMes:total)}</p>
+              <p style={{color:"#ffffffaa",fontSize:11,fontWeight:600,marginBottom:6}}>
+                {espacio.tipo==="sueldo"?"PAGADO ESTE MES":"TOTAL ACUMULADO"}
+              </p>
+              <p style={{color:"#fff",fontSize:36,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?totalMes:totalHistorico)}</p>
               {espacio.tipo==="sueldo"&&(
-                <p style={{color:"#ffffffbb",fontSize:13,marginTop:4}}>
-                  {new Date().toLocaleString("es-AR",{month:"long",year:"numeric"})}
-                </p>
+                <p style={{color:"#ffffffbb",fontSize:13,marginTop:4}}>{new Date().toLocaleString("es-AR",{month:"long",year:"numeric"})}</p>
               )}
               {espacio.objetivo>0&&espacio.tipo!=="sueldo"&&(
                 <>
                   <p style={{color:"#ffffffbb",fontSize:13,marginTop:6}}>Objetivo: {fmt(espacio.objetivo)}</p>
-                  <div style={{marginTop:10}}><Barra pct={objPct} color="#ffffff60"/><p style={{color:"#ffffffaa",fontSize:11,marginTop:4}}>{objPct}% del objetivo</p></div>
+                  <div style={{marginTop:10}}><Barra pct={objPct} color="#ffffff60"/><p style={{color:"#ffffffaa",fontSize:11,marginTop:4}}>{objPct}%</p></div>
                 </>
               )}
               {editEspacio&&espacio.tipo==="ahorro"&&(
@@ -1362,31 +1337,23 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
               <div style={{display:"flex",gap:0,marginTop:14,borderTop:"1px solid #ffffff30",paddingTop:12}}>
                 <div style={{flex:1}}>
                   <p style={{color:"#ffffffaa",fontSize:11}}>{espacio.tipo==="sueldo"?"Total histórico":"Mi aporte"}</p>
-                  <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?movimientos.reduce((a,b)=>a+b.monto,0):miTotal)}</p>
+                  <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(espacio.tipo==="sueldo"?totalHistorico:miTotal)}</p>
                 </div>
-                {espacio.tipo==="sueldo"&&(
-                  <div style={{flex:1}}>
-                    <p style={{color:"#ffffffaa",fontSize:11}}>Pagos este mes</p>
-                    <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{movsMes.length} pagos</p>
-                  </div>
-                )}
-                {espacio.tipo!=="sueldo"&&(
-                  <div style={{flex:1}}>
-                    <p style={{color:"#ffffffaa",fontSize:11}}>Otro aporte</p>
-                    <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{fmt(otroTotal)}</p>
-                  </div>
-                )}
+                <div style={{flex:1}}>
+                  <p style={{color:"#ffffffaa",fontSize:11}}>{espacio.tipo==="sueldo"?"Pagos este mes":"Otro aporte"}</p>
+                  <p style={{color:"#fff",fontSize:16,fontWeight:800}}>{espacio.tipo==="sueldo"?`${movsMes.length} pagos`:fmt(otroTotal)}</p>
+                </div>
               </div>
             </Card>
 
-            {/* Config billetera de cobro (para receptor de sueldo = no creador) */}
+            {/* Billetera de cobro (receptor) */}
             {espacio.tipo==="sueldo"&&!esCreador&&(
               <Card style={{border:`1.5px solid ${C.gold}30`,background:C.goldLight}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <p style={{fontWeight:700,fontSize:14,color:C.gold}}>💳 Billetera de cobro</p>
                   <button onClick={()=>setConfigBilletera(!configBilletera)}
                     style={{padding:"6px 12px",borderRadius:10,border:`2px solid ${C.gold}`,background:C.white,color:C.gold,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>
-                    {configBilletera?"✕ Cerrar":"⚙️ Configurar"}
+                    {configBilletera?"✕":"⚙️ Configurar"}
                   </button>
                 </div>
                 {miMiembro?.billetera_destino_nombre?(
@@ -1398,13 +1365,13 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                     </button>
                   </div>
                 ):(
-                  <p style={{fontSize:13,color:C.textMid}}>⚠️ Configurá dónde querés recibir tus pagos. Cuando el empleador registre un pago, se te sumará automáticamente.</p>
+                  <p style={{fontSize:13,color:C.textMid}}>⚠️ Configurá dónde querés recibir tus pagos para que se sumen automáticamente a tu billetera.</p>
                 )}
                 {configBilletera&&(
                   <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
                     {billeterasReceptor.length===0?(
                       <div style={{padding:10,borderRadius:12,background:C.redLight}}>
-                        <p style={{fontSize:13,color:C.red,fontWeight:600}}>⚠️ No tenés billeteras creadas. Andá a Más → Billeteras y creá una primero.</p>
+                        <p style={{fontSize:13,color:C.red,fontWeight:600}}>⚠️ No tenés billeteras. Andá a Más → Billeteras y creá una primero.</p>
                       </div>
                     ):(
                       <>
@@ -1412,11 +1379,11 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                         <div style={{display:"flex",flexDirection:"column",gap:8}}>
                           {billeterasReceptor.map(b=>(
                             <button key={b.id} onClick={()=>setBilleteraDestId(b.id)}
-                              style={{padding:"12px 16px",borderRadius:14,border:`2px solid ${billeteraDestId===b.id?C.gold:C.border}`,background:billeteraDestId===b.id?C.goldLight:C.white,fontFamily:"inherit",fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:10,textAlign:"left",transition:"all 0.15s",boxShadow:billeteraDestId===b.id?`0 0 0 3px ${C.gold}20`:"none"}}>
+                              style={{padding:"12px 16px",borderRadius:14,border:`2px solid ${billeteraDestId===b.id?C.gold:C.border}`,background:billeteraDestId===b.id?C.goldLight:C.white,fontFamily:"inherit",fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:10,transition:"all 0.15s"}}>
                               <span style={{fontSize:22}}>{b.icono}</span>
-                              <div style={{flex:1}}>
+                              <div style={{flex:1,textAlign:"left"}}>
                                 <p style={{fontWeight:700,fontSize:14,color:billeteraDestId===b.id?C.gold:C.text}}>{b.nombre}</p>
-                                <p style={{fontSize:12,color:C.textMid}}>Saldo actual: {fmt(b.saldo)}</p>
+                                <p style={{fontSize:12,color:C.textMid}}>Saldo: {fmt(b.saldo)}</p>
                               </div>
                               {billeteraDestId===b.id&&<span style={{fontSize:18,color:C.gold}}>✓</span>}
                             </button>
@@ -1433,6 +1400,17 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
               </Card>
             )}
 
+            {/* Aviso al empleador sobre billetera del receptor */}
+            {espacio.tipo==="sueldo"&&esCreador&&receptor&&(
+              <Card style={{padding:14,background:receptor.billetera_destino_nombre?C.greenLight:C.goldLight,border:`1px solid ${receptor.billetera_destino_nombre?C.green:C.gold}30`}}>
+                <p style={{fontSize:13,color:receptor.billetera_destino_nombre?C.green:C.gold,fontWeight:600}}>
+                  {receptor.billetera_destino_nombre
+                    ?`✅ Al registrar un pago se sumará automáticamente a ${receptor.billetera_destino_icono||"💳"} ${receptor.billetera_destino_nombre} de ${receptor.nombre_usuario||"el receptor"}.`
+                    :"⚠️ El receptor aún no configuró su billetera de cobro. Los pagos se notificarán pero no se sumarán automáticamente."}
+                </p>
+              </Card>
+            )}
+
             {/* Participantes */}
             {miembros.length>0&&(
               <Card>
@@ -1444,7 +1422,7 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                     </div>
                     <div style={{flex:1}}>
                       <p style={{fontWeight:600,fontSize:13}}>{m.user_id===userId?"Vos":(m.nombre_usuario||"Participante")}</p>
-                      <p style={{color:C.textMid,fontSize:11}}>{m.rol==="creador"?espacio.tipo==="sueldo"?"Empleador":"Creador":"Miembro"} · {m.puede_editar!==false?"Puede editar":"Solo lectura"}</p>
+                      <p style={{color:C.textMid,fontSize:11}}>{m.rol==="creador"?(espacio.tipo==="sueldo"?"Empleador":"Creador"):"Miembro"} · {m.puede_editar!==false?"Puede editar":"Solo lectura"}</p>
                       {m.billetera_destino_nombre&&<p style={{color:C.gold,fontSize:11,marginTop:2}}>{m.billetera_destino_icono} Cobro en: {m.billetera_destino_nombre}</p>}
                     </div>
                     {m.user_id===userId&&<span style={{fontSize:10,color:C.accent,fontWeight:700,background:C.accentLight,padding:"2px 8px",borderRadius:20}}>Vos</span>}
@@ -1453,7 +1431,7 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
               </Card>
             )}
 
-            {/* Formulario agregar (solo creador en sueldo) */}
+            {/* Formulario registrar pago (solo creador en sueldo, o creador en otros tipos) */}
             {esCreador&&(
               <Card>
                 <p style={{fontWeight:700,fontSize:15,marginBottom:12}}>{espacio.tipo==="sueldo"?"💼 Registrar pago":"💰 Agregar aporte"}</p>
@@ -1464,20 +1442,12 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
                     <p style={{color:C.textMid,fontSize:12}}>📅 Fecha:</p>
                     <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{fontFamily:"inherit",fontSize:15,padding:"12px 14px",border:`2px solid ${C.border}`,borderRadius:14,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
                   </div>
-                  {espacio.tipo==="sueldo"&&(
-                    <div style={{padding:10,borderRadius:12,background:C.goldLight,border:`1px solid ${C.gold}30`}}>
-                      <p style={{fontSize:12,color:C.textMid}}>
-                        {miembros.find(m=>m.user_id!==userId&&m.billetera_destino_nombre)
-                          ?`✅ Al guardar, se sumará automáticamente a ${miembros.find(m=>m.user_id!==userId).billetera_destino_icono||"💳"} ${miembros.find(m=>m.user_id!==userId).billetera_destino_nombre} del receptor.`
-                          :"⚠️ El receptor aún no configuró su billetera de cobro. Se le notificará igual."}
-                      </p>
-                    </div>
-                  )}
-                  <BtnPrimary onClick={agregar}>{espacio.tipo==="sueldo"?"Registrar pago 💼":"Guardar aporte 💰"}</BtnPrimary>
+                  <BtnPrimary onClick={agregar} color={espacio.tipo==="sueldo"?C.gold:C.accent}>{espacio.tipo==="sueldo"?"Registrar pago 💼":"Guardar aporte 💰"}</BtnPrimary>
                 </div>
               </Card>
             )}
 
+            {/* Solo lectura para miembros no-sueldo */}
             {!esCreador&&espacio.tipo!=="sueldo"&&(
               <Card style={{background:C.goldLight,border:`1.5px solid ${C.gold}30`}}>
                 <p style={{fontWeight:600,fontSize:14,color:C.gold}}>👁️ Solo lectura</p>
@@ -1487,80 +1457,80 @@ function DetalleEspacio({espacio,userId,puedeEditar,onClose,isMobile,onUpdate}){
 
             {/* Botones salir/eliminar */}
             <div style={{display:"flex",gap:8}}>
-              {!esCreador&&<button onClick={salirEspacio} style={{flex:1,padding:"12px",borderRadius:14,border:`2px solid ${C.gold}30`,background:C.goldLight,color:C.gold,fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer"}}>🚪 Salir del espacio</button>}
+              {!esCreador&&<button onClick={salirEspacio} style={{flex:1,padding:"12px",borderRadius:14,border:`2px solid ${C.gold}30`,background:C.goldLight,color:C.gold,fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer"}}>🚪 Salir</button>}
               {esCreador&&<button onClick={eliminarEspacio} style={{flex:1,padding:"12px",borderRadius:14,border:`2px solid ${C.red}30`,background:C.redLight,color:C.red,fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer"}}>🗑️ Eliminar espacio</button>}
             </div>
           </div>
 
           {/* Columna derecha - historial */}
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <p style={{fontWeight:700,fontSize:16}}>Historial</p>
-              <div style={{display:"flex",gap:4,background:C.bg,borderRadius:10,padding:3}}>
-                {[["todo","Todo"],["mes","Mes"],["semana","Sem"],["anio","Año"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setPeriodoVer(v)}
-                    style={{padding:"5px 8px",borderRadius:7,border:"none",background:periodoVer===v?C.white:"transparent",color:periodoVer===v?C.accent:C.textMid,fontFamily:"inherit",fontWeight:700,fontSize:11,cursor:"pointer",transition:"all 0.2s"}}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Historial por mes (sueldo) */}
+            {/* Historial por mes para sueldo */}
             {espacio.tipo==="sueldo"&&mesesOrdenados.length>0&&(
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <p style={{fontWeight:700,fontSize:16}}>📅 Historial por mes</p>
                 {mesesOrdenados.map(mes=>{
                   const dataMes=pagosPorMes[mes];
                   const esMesActual=mes===mesActual;
                   const pagosDia={};
-                  dataMes.movs.forEach(m=>{pagosDia[m.fecha]=(pagosDia[m.fecha]||0)+m.monto;});
-                  return(
-                    <MesCardSueldo key={mes} mes={mes} dataMes={dataMes} pagosDia={pagosDia} esMesActual={esMesActual} nombreMes={nombreMes}/>
-                  );
+                  dataMes.movs.forEach(m=>{pagosDia[m.fecha||""]=(pagosDia[m.fecha||""]||0)+m.monto;});
+                  return <MesCardSueldo key={mes} mes={mes} dataMes={dataMes} pagosDia={pagosDia} esMesActual={esMesActual} nombreMes={nombreMes}/>;
                 })}
               </div>
             )}
 
-            {loading?<p style={{color:C.textMid,textAlign:"center",padding:20}}>Cargando...</p>:
-              movF.length===0?<Card style={{textAlign:"center",padding:30}}><p style={{color:C.textMid}}>Sin movimientos en este período</p></Card>:
-              movF.map(m=>(
-                <Card key={m.id} style={{padding:"12px 14px",animation:"fadeUp 0.2s ease"}}>
-                  {editMov===m.id?(
-                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      <input value={editMovData.descripcion||""} onChange={e=>setEditMovData({...editMovData,descripcion:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",background:C.white,color:C.text}}/>
-                      <input type="number" value={editMovData.monto||""} onChange={e=>setEditMovData({...editMovData,monto:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",background:C.white,color:C.text}}/>
-                      <input type="date" value={editMovData.fecha||""} onChange={e=>setEditMovData({...editMovData,fecha:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
-                      <div style={{display:"flex",gap:8}}>
-                        <button onClick={()=>setEditMov(null)} style={{flex:1,padding:"8px",borderRadius:10,border:`2px solid ${C.border}`,background:C.white,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",color:C.textMid}}>Cancelar</button>
-                        <button onClick={guardarEditMov} style={{flex:2,padding:"8px",borderRadius:10,border:"none",background:C.accent,color:"#fff",fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>Guardar</button>
-                      </div>
-                    </div>
-                  ):(
-                    <div style={{display:"flex",alignItems:"center",gap:12}}>
-                      <div style={{width:38,height:38,borderRadius:10,background:m.user_id===userId?C.accentLight:C.goldLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
-                        {m.user_id===userId?"👤":"👥"}
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <p style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.descripcion}</p>
-                        <p style={{color:C.textLight,fontSize:11,marginTop:2}}>
-                          {new Date(m.fecha+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"})}
-                          {" · "}{m.user_id===userId?"Vos":(m.nombre_usuario||"Otro")}
-                        </p>
-                      </div>
-                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
-                        <p style={{fontWeight:800,fontSize:14,color:C.green}}>+{fmt(m.monto)}</p>
-                        {(m.user_id===userId||esCreador)&&(
-                          <div style={{display:"flex",gap:6}}>
-                            <button onClick={()=>{setEditMov(m.id);setEditMovData({descripcion:m.descripcion,monto:m.monto,fecha:m.fecha});}} style={{fontSize:11,color:C.accent,background:"none",border:"none",cursor:"pointer"}}>✏️</button>
-                            <button onClick={()=>eliminarMov(m.id)} style={{fontSize:11,color:C.textLight,background:"none",border:"none",cursor:"pointer"}}>🗑️</button>
+            {/* Historial general (filtrado) */}
+            {espacio.tipo!=="sueldo"&&(
+              <>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <p style={{fontWeight:700,fontSize:16}}>Historial</p>
+                  <div style={{display:"flex",gap:4,background:C.bg,borderRadius:10,padding:3}}>
+                    {[["todo","Todo"],["mes","Mes"],["semana","Sem"],["anio","Año"]].map(([v,l])=>(
+                      <button key={v} onClick={()=>setPeriodoVer(v)}
+                        style={{padding:"5px 8px",borderRadius:7,border:"none",background:periodoVer===v?C.white:"transparent",color:periodoVer===v?C.accent:C.textMid,fontFamily:"inherit",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {loading?<p style={{color:C.textMid,textAlign:"center",padding:20}}>Cargando...</p>:
+                  movF.length===0?<Card style={{textAlign:"center",padding:30}}><p style={{color:C.textMid}}>Sin movimientos en este período</p></Card>:
+                  movF.map(m=>(
+                    <Card key={m.id} style={{padding:"12px 14px",animation:"fadeUp 0.2s ease"}}>
+                      {editMov===m.id?(
+                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                          <input value={editMovData.descripcion||""} onChange={e=>setEditMovData({...editMovData,descripcion:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",background:C.white,color:C.text}}/>
+                          <input type="number" value={editMovData.monto||""} onChange={e=>setEditMovData({...editMovData,monto:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",background:C.white,color:C.text}}/>
+                          <input type="date" value={editMovData.fecha||""} onChange={e=>setEditMovData({...editMovData,fecha:e.target.value})} style={{fontFamily:"inherit",fontSize:14,padding:"8px 12px",border:`2px solid ${C.border}`,borderRadius:10,outline:"none",width:"100%",textAlign:"center",background:C.white,color:C.text}}/>
+                          <div style={{display:"flex",gap:8}}>
+                            <button onClick={()=>setEditMov(null)} style={{flex:1,padding:"8px",borderRadius:10,border:`2px solid ${C.border}`,background:C.white,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",color:C.textMid}}>Cancelar</button>
+                            <button onClick={guardarEditMov} style={{flex:2,padding:"8px",borderRadius:10,border:"none",background:C.accent,color:"#fff",fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}}>Guardar</button>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ))
-            }
+                        </div>
+                      ):(
+                        <div style={{display:"flex",alignItems:"center",gap:12}}>
+                          <div style={{width:38,height:38,borderRadius:10,background:m.user_id===userId?C.accentLight:C.goldLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                            {m.user_id===userId?"👤":"👥"}
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <p style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.descripcion}</p>
+                            <p style={{color:C.textLight,fontSize:11,marginTop:2}}>{m.fecha?new Date(m.fecha+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"}):""} · {m.user_id===userId?"Vos":(m.nombre_usuario||"Otro")}</p>
+                          </div>
+                          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                            <p style={{fontWeight:800,fontSize:14,color:C.green}}>+{fmt(m.monto)}</p>
+                            {(m.user_id===userId||esCreador)&&(
+                              <div style={{display:"flex",gap:6}}>
+                                <button onClick={()=>{setEditMov(m.id);setEditMovData({descripcion:m.descripcion,monto:m.monto,fecha:m.fecha});}} style={{fontSize:11,color:C.accent,background:"none",border:"none",cursor:"pointer"}}>✏️</button>
+                                <button onClick={()=>eliminarMov(m.id)} style={{fontSize:11,color:C.textLight,background:"none",border:"none",cursor:"pointer"}}>🗑️</button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  ))
+                }
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1705,7 +1675,7 @@ function TabCompartido({userId,isMobile}){
         </Modal>
       )}
 
-      {detalle&&<DetalleEspacio espacio={detalle} userId={userId} puedeEditar={roles[detalle.id]?.puede_editar!==false} isMobile={isMobile} onClose={()=>setDetalle(null)} onUpdate={cargar}/>}
+      {detalle&&<DetalleEspacio espacioInit={detalle} userId={userId} isMobile={isMobile} onClose={()=>setDetalle(null)} onUpdate={cargar}/>}
     </div>
   );
 }
